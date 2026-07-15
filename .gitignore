@@ -1,7 +1,9 @@
-﻿node_modules/
+node_modules/
 dist/
 .env
 models/
+chat-frontend/models/
 *.log
 .DS_Store
 Thumbs.db
+ollama/

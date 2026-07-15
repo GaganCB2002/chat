@@ -25,12 +25,12 @@ npm run dev
 
 ### Core Chat
 - **Local & Cloud AI**: Switch between offline Ollama models and online Google Gemini
-- **Streaming Responses**: Real-time token-by-token streaming with live markdown rendering and a blinking cursor
-- **AI Thinking Panel**: Beautifully simulated thinking stages (Understanding Request → Planning → Searching Context → Writing Response)
+- **Streaming Responses**: Real-time token-by-token streaming with live markdown rendering
 - **Message Queue**: Messages sent during generation are queued and auto-processed sequentially
-- **Flawless Interrupts**: Cancel AI response mid-generation and save the exact partial response to history
-- **Message Status**: Real-time indicators for sent, generating, interrupted, and failed messages
-- **Regenerate & Edit**: Re-generate responses or edit your prompts seamlessly
+- **Stop Generation**: Cancel AI response mid-generation
+- **Regenerate**: Re-generate the last assistant response
+- **Edit & Delete**: Edit sent messages or delete them
+- **Copy & Share**: Copy message content with one click
 - **Like/Dislike**: Rate assistant responses
 
 ### File & Media
@@ -39,23 +39,21 @@ npm run dev
 - **File Context**: Uploaded files are automatically attached as context to messages
 - **Image Preview**: Inline image rendering with click-to-open lightbox
 
-### Chat Management & Organization
-- **Chronological Sidebar**: Chats dynamically group into *Today*, *Yesterday*, *Previous 7 Days*, *Previous 30 Days*, and *Older*
-- **Action Dropdowns**: Every chat features a rich context menu to Duplicate, Archive, Export, Pin, or Favorite
-- **True Persistence**: Robust state recovery—refreshing the browser restores the exact sidebar layout, open chat, model selection, and uploaded files perfectly
-- **Chat Export**: Download any conversation as a clean Markdown file
-- **Folders**: Organize chats into custom folders (Work, Personal, Research, Learning)
-- **Auto-Summarize**: Automatic title generation after the first exchange
-- **Message Search**: Ctrl+F to search within the current chat with result navigation
+### Chat Management
+- **Conversation History**: All chats saved locally with full search
+- **Chat Export**: Export conversations as JSON or TXT
+- **Folders**: Organize chats into folders (Work, Personal, Research, Learning)
+- **Pin Messages**: Pin important messages for quick reference
+- **Auto-Summarize**: Automatic title generation after first exchange
+- **Message Search**: Ctrl+F to search within current chat with result navigation
 
 ### UI & Experience
-- **Virtual Scrolling**: Integrated `react-virtuoso` guarantees 60fps scrolling and zero lag, even for conversations with thousands of messages
-- **Dashboard**: Active model status, live token/request quotas, task queue progress, and recent conversations
+- **Dashboard**: Active model status, live task queue with progress bars, recent conversations
 - **Command Palette**: Ctrl+K to quickly search chats and trigger actions
 - **Theme**: Light/Dark/System mode with smooth CSS transitions
-- **Responsive**: Mobile-friendly with an animated collapsible sidebar
+- **Responsive**: Mobile-friendly with collapsible sidebar
 - **Keyboard Shortcuts**: Ctrl+N (new chat), Ctrl+Shift+T (theme), Ctrl+B (sidebar), and more
-- **Speech-to-Text**: Voice input via Web Speech API
+- **Speech-to-Text**: Voice input via Web Speech API (mic button)
 - **Developer Mode**: Bottom status bar showing model, Ollama status, and version info
 
 ### Markdown Support

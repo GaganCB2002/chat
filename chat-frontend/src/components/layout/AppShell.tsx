@@ -31,10 +31,17 @@ export function AppShell() {
   useEffect(() => { checkOllama().catch(() => {}); }, [checkOllama]);
 
   useEffect(() => {
+    const getChatIdFromPath = (path: string): string | null => {
+      const match = path.match(/^\/chat\/(.+)--(.+)$/);
+      if (match) return match[2];
+      const legacyMatch = path.match(/^\/chat\/(.+)$/);
+      if (legacyMatch) return legacyMatch[1];
+      return null;
+    };
     const handlePopState = () => {
-      const match = window.location.pathname.match(/^\/chat\/(.+)$/);
-      if (match) {
-        useChatStore.setState({ currentChatId: match[1], view: 'chat' });
+      const chatId = getChatIdFromPath(window.location.pathname);
+      if (chatId) {
+        useChatStore.setState({ currentChatId: chatId, view: 'chat' });
       } else {
         useChatStore.setState({ currentChatId: null, view: 'dashboard' });
       }

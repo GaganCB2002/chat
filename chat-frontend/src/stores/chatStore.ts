@@ -8,6 +8,11 @@ import { chatCompletionGemini } from '../api/gemini';
 import { useSettingsStore } from './settingsStore';
 import { useToastStore } from './toastStore';
 import { useAuthStore } from './authStore';
+import { slugify } from '../utils/format';
+
+function getChatUrl(title: string, id: string): string {
+  return `/chat/${slugify(title)}--${id}`;
+}
 
 function getUserStorageKey(): string {
   try {
@@ -149,18 +154,25 @@ export const useChatStore = create<ChatState>()(
           : c
       ),
     }));
+    if (msg.role === 'user') {
+      const updated = get().chats.find((c) => c.id === currentChatId);
+      if (updated && updated.messages.length === 1) {
+        window.history.replaceState({}, '', getChatUrl(updated.title, currentChatId!));
+      }
+    }
   },
 
   setSidebarOpen: (v) => set({ sidebarOpen: v }),
   setView: (v) => set({ view: v }),
   selectChat: (id) => {
-    window.history.pushState({}, '', `/chat/${id}`);
+    const chat = get().chats.find((c) => c.id === id);
+    window.history.pushState({}, '', getChatUrl(chat?.title || 'chat', id));
     set({ currentChatId: id, view: 'chat' });
   },
 
   newChat: () => {
     const chat = createNewChat();
-    window.history.pushState({}, '', `/chat/${chat.id}`);
+    window.history.pushState({}, '', getChatUrl(chat.title, chat.id));
     set((s) => ({ chats: [chat, ...s.chats], currentChatId: chat.id, view: 'chat' }));
   },
 
@@ -230,7 +242,7 @@ export const useChatStore = create<ChatState>()(
         const chat = createNewChat();
         set((s) => ({ chats: [chat, ...s.chats], currentChatId: chat.id }));
         chatId = chat.id;
-        window.history.pushState({}, '', `/chat/${chatId}`);
+        window.history.pushState({}, '', getChatUrl(chat.title, chatId));
       }
 
       const auth = useAuthStore.getState();
@@ -568,6 +580,9 @@ export const useChatStore = create<ChatState>()(
 
   renameChat: (id, title) => {
     set((s) => ({ chats: s.chats.map((c) => (c.id === id ? { ...c, title } : c)) }));
+    if (get().currentChatId === id) {
+      window.history.replaceState({}, '', getChatUrl(title, id));
+    }
   },
 
   duplicateChat: (id) => {
@@ -588,7 +603,7 @@ export const useChatStore = create<ChatState>()(
     };
     
     set((s) => ({ chats: [newChat, ...s.chats], currentChatId: newChat.id, view: 'chat' }));
-    window.history.pushState({}, '', `/chat/${newChat.id}`);
+    window.history.pushState({}, '', getChatUrl(newChat.title, newChat.id));
   },
 
   toggleFavoriteChat: (id) => {
@@ -705,7 +720,7 @@ useAuthStore.subscribe((newState, oldState) => {
         processingQueue: false,
         view: 'chat',
       });
-      window.history.pushState({}, '', `/chat/${fresh.id}`);
+      window.history.pushState({}, '', getChatUrl(fresh.title, fresh.id));
     }
   }
 });

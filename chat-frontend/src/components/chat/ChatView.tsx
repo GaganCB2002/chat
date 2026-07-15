@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { Search, X, ArrowUp, ArrowDown, AlertCircle, Bot, Check, Loader2, Square } from 'lucide-react';
+import { Search, X, ArrowUp, ArrowDown, AlertCircle, Bot, Loader2, Square } from 'lucide-react';
 import { useChatStore } from '../../stores/chatStore';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
@@ -121,48 +120,29 @@ export function ChatView() {
             Footer: () => (
               <>
                 {streamingMsg && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                    className="flex items-end gap-2 px-4 sm:px-6 py-1 justify-start mb-16"
-                  >
+                  <div className="flex items-end gap-2 px-4 sm:px-6 py-1 justify-start mb-16">
                     <div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary-100 dark:bg-primary-900/30 ring-1 ring-inset ring-primary-200/50 dark:ring-primary-700/30 flex items-center justify-center mb-1">
                       <Bot className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
                     </div>
                     <div className="flex flex-col max-w-[75%] min-w-0 items-start w-full">
-                      <div className="mb-2 w-full max-w-md bg-white dark:bg-surface-secondary border border-border rounded-xl p-3 shadow-sm text-sm">
-                        <div className="font-medium text-text-secondary mb-2 flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
-                          Thinking Process
-                        </div>
-                        <div className="space-y-1.5 pl-1">
-                          <div className="flex items-center gap-2 text-xs">
-                            {streamingContent.length > 10 ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-500" />}
-                            <span className={streamingContent.length > 10 ? 'text-text-secondary' : 'text-text font-medium'}>Understanding Request</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            {streamingContent.length > 50 ? <Check className="w-3.5 h-3.5 text-green-500" /> : streamingContent.length > 10 ? <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-500" /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-border" />}
-                            <span className={streamingContent.length > 50 ? 'text-text-secondary' : streamingContent.length > 10 ? 'text-text font-medium' : 'text-text-tertiary'}>Planning</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            {streamingContent.length > 100 ? <Check className="w-3.5 h-3.5 text-green-500" /> : streamingContent.length > 50 ? <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-500" /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-border" />}
-                            <span className={streamingContent.length > 100 ? 'text-text-secondary' : streamingContent.length > 50 ? 'text-text font-medium' : 'text-text-tertiary'}>Searching Context</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-500" />
-                            <span className="text-text font-medium">Writing Response</span>
+                      {streamingContent === 'I\'m thinking...' && (
+                        <div className="relative rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm bg-white dark:bg-surface-secondary text-text rounded-tl-sm">
+                          <div className="flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
+                            <span className="text-text-secondary">I'm thinking...</span>
                           </div>
                         </div>
-                      </div>
-                      <div className="relative rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm bg-white dark:bg-surface-secondary text-text rounded-tl-sm w-full">
-                        <div className="prose prose-sm dark:prose-invert max-w-none prose-code:before:content-none prose-code:after:content-none">
-                          {renderMarkdown(streamingContent)}
-                          <span className="inline-block w-1.5 h-4 bg-primary-500 ml-0.5 animate-pulse rounded-sm align-text-bottom" />
+                      )}
+                      {streamingContent !== 'I\'m thinking...' && (
+                        <div className="relative rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm bg-white dark:bg-surface-secondary text-text rounded-tl-sm w-full">
+                          <div className="prose prose-sm dark:prose-invert max-w-none prose-code:before:content-none prose-code:after:content-none">
+                            {renderMarkdown(streamingContent)}
+                            <span className="inline-block w-1.5 h-4 bg-primary-500 ml-0.5 animate-pulse rounded-sm align-text-bottom" />
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
-                  </motion.div>
+                  </div>
                 )}
               </>
             )
