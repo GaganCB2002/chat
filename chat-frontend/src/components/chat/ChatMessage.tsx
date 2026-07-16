@@ -21,16 +21,24 @@ export function ChatMessage({ message, onRegenerate }: ChatMessageProps) {
   const [shared, setShared] = useState(false);
   const isAssistant = message.role === 'assistant';
 
-  const handleShare = async () => {
+  const copyFallback = (text: string) => {
     try {
-      await navigator.clipboard.writeText(message.content);
-    } catch {
       const ta = document.createElement('textarea');
-      ta.value = message.content;
+      ta.value = text;
       document.body.appendChild(ta);
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
+    } catch {
+      // clipboard not available
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+    } catch {
+      copyFallback(message.content);
     }
     setShared(true);
     setTimeout(() => setShared(false), 1500);
@@ -40,12 +48,7 @@ export function ChatMessage({ message, onRegenerate }: ChatMessageProps) {
     try {
       await navigator.clipboard.writeText(message.content);
     } catch {
-      const ta = document.createElement('textarea');
-      ta.value = message.content;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
+      copyFallback(message.content);
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);

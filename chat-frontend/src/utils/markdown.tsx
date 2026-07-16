@@ -1,4 +1,6 @@
+/* eslint-disable react-refresh/only-export-components */
 /* eslint-disable react/only-export-components */
+import { useEffect, useRef, useState, createElement } from 'react';
 import type { ReactNode } from 'react';
 
 function escapeHtml(text: string): string {
@@ -40,18 +42,20 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
     try {
       await navigator.clipboard.writeText(code);
     } catch {
-      const ta = document.createElement('textarea');
-      ta.value = code;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = code;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch { /* clipboard not available */ }
     }
   };
 
   return (
-    <div className="my-4 rounded-xl overflow-hidden border border-border ">
-      <div className="flex items-center justify-between px-4 py-2 bg-surface-tertiary border-b border-border ">
+    <div className="my-4 rounded-xl overflow-hidden border border-border">
+      <div className="flex items-center justify-between px-4 py-2 bg-surface-tertiary border-b border-border">
         <span className="text-xs text-text-tertiary font-mono">{language || 'text'}</span>
         <button
           onClick={copyCode}
@@ -61,7 +65,53 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
           Copy
         </button>
       </div>
-      <pre className="p-4 overflow-x-auto bg-surface-secondary "><code className="text-sm font-mono leading-relaxed text-text ">{escapeHtml(code)}</code></pre>
+      <pre className="p-4 overflow-x-auto bg-surface-secondary"><code className="text-sm font-mono leading-relaxed text-text">{escapeHtml(code)}</code></pre>
+    </div>
+  );
+}
+
+function MermaidBlock({ code }: { code: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!ref.current || error) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const mermaid = await import('mermaid');
+        const m = mermaid.default;
+        m.initialize({
+          startOnLoad: false,
+          theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+          themeVariables: document.documentElement.classList.contains('dark')
+            ? { background: '#1e1e2e', primaryColor: '#89b4fa', primaryTextColor: '#cdd6f4', primaryBorderColor: '#45475a', lineColor: '#585b70', secondaryColor: '#313244', tertiaryColor: '#1e1e2e' }
+            : { background: '#ffffff', primaryColor: '#4f8ff7', primaryTextColor: '#1e293b', primaryBorderColor: '#e2e8f0', lineColor: '#94a3b8', secondaryColor: '#f1f5f9', tertiaryColor: '#ffffff' },
+        });
+        const id = `mermaid-${Math.random().toString(36).slice(2, 9)}`;
+        const { svg } = await m.render(id, code);
+        if (!cancelled && ref.current) {
+          ref.current.innerHTML = svg;
+        }
+      } catch {
+        if (!cancelled) setError(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [code, error]);
+
+  if (error) {
+    return <CodeBlock code={code} language="mermaid" />;
+  }
+
+  return (
+    <div className="my-4 rounded-xl overflow-hidden border border-border">
+      <div className="flex items-center justify-between px-4 py-2 bg-surface-tertiary border-b border-border">
+        <span className="text-xs text-text-tertiary font-mono">diagram</span>
+      </div>
+      <div className="p-4 overflow-x-auto bg-surface-secondary flex justify-center">
+        <div ref={ref} className="mermaid" />
+      </div>
     </div>
   );
 }
@@ -80,15 +130,26 @@ export function renderMarkdown(content: string): ReactNode[] {
       i++;
       while (i < lines.length && !lines[i].startsWith('```')) { codeLines.push(lines[i]); i++; }
       i++;
-      elements.push(<CodeBlock key={`cb-${elements.length}`} code={codeLines.join('\n')} language={lang} />);
+      if (lang === 'mermaid') {
+        elements.push(<MermaidBlock key={`md-${elements.length}`} code={codeLines.join('\n')} />);
+      } else {
+        elements.push(<CodeBlock key={`cb-${elements.length}`} code={codeLines.join('\n')} language={lang} />);
+      }
       continue;
     }
 
-    if (/^#{1,2}\s/.test(line)) {
-      const level = line.startsWith('# ') ? 2 : 3;
-      const text = line.replace(/^#{1,2}\s+/, '');
-      const Tag = level === 2 ? 'h2' : 'h3';
-      elements.push(<Tag key={`h-${elements.length}`}>{processInline(text)}</Tag>);
+    if (/^#{1,6}\s/.test(line)) {
+      const level = line.match(/^#+/)![0].length;
+      const text = line.replace(/^#{1,6}\s+/, '');
+      const headingClass = [
+        'text-xl font-bold mt-6 mb-3',
+        'text-lg font-semibold mt-5 mb-2',
+        'text-base font-semibold mt-4 mb-2',
+        'text-sm font-medium mt-3 mb-1',
+        'text-sm font-medium mt-2 mb-1 text-text-secondary',
+      ][Math.min(level, 5) - 1] || 'text-base font-semibold mt-4 mb-2';
+      const tagName = `h${Math.min(level + 1, 6)}`;
+      elements.push(createElement(tagName, { key: `h-${elements.length}`, className: headingClass }, processInline(text)));
       i++;
       continue;
     }
@@ -96,21 +157,25 @@ export function renderMarkdown(content: string): ReactNode[] {
     if (line.startsWith('> ')) {
       const quoteLines: string[] = [];
       while (i < lines.length && lines[i].startsWith('> ')) { quoteLines.push(lines[i].replace(/^>\s*/, '')); i++; }
-      elements.push(<blockquote key={`q-${elements.length}`}>{quoteLines.map((q, idx) => <div key={idx}>{processInline(q)}</div>)}</blockquote>);
+      elements.push(
+        <blockquote key={`q-${elements.length}`} className="border-l-4 border-primary-400 bg-primary-50/50 dark:bg-primary-900/10 rounded-r-lg px-4 py-2 my-3 text-text-secondary italic">
+          {quoteLines.map((q, idx) => <div key={idx}>{processInline(q)}</div>)}
+        </blockquote>
+      );
       continue;
     }
 
     if (/^\s*[-*+]\s/.test(line)) {
       const items: ReactNode[] = [];
-      while (i < lines.length && /^\s*[-*+]\s/.test(lines[i])) { items.push(<li key={`li-${i}`}>{processInline(lines[i].replace(/^\s*[-*+]\s+/, ''))}</li>); i++; }
-      elements.push(<ul key={`ul-${elements.length}`}>{items}</ul>);
+      while (i < lines.length && /^\s*[-*+]\s/.test(lines[i])) { items.push(<li key={`li-${i}`} className="text-text">{processInline(lines[i].replace(/^\s*[-*+]\s+/, ''))}</li>); i++; }
+      elements.push(<ul key={`ul-${elements.length}`} className="list-disc pl-5 my-2 space-y-1">{items}</ul>);
       continue;
     }
 
     if (/^\s*\d+\.\s/.test(line)) {
       const items: ReactNode[] = [];
-      while (i < lines.length && /^\s*\d+\.\s/.test(lines[i])) { items.push(<li key={`li-${i}`}>{processInline(lines[i].replace(/^\s*\d+\.\s+/, ''))}</li>); i++; }
-      elements.push(<ol key={`ol-${elements.length}`}>{items}</ol>);
+      while (i < lines.length && /^\s*\d+\.\s/.test(lines[i])) { items.push(<li key={`li-${i}`} className="text-text">{processInline(lines[i].replace(/^\s*\d+\.\s+/, ''))}</li>); i++; }
+      elements.push(<ol key={`ol-${elements.length}`} className="list-decimal pl-5 my-2 space-y-1">{items}</ol>);
       continue;
     }
 
@@ -120,13 +185,13 @@ export function renderMarkdown(content: string): ReactNode[] {
       const rows: ReactNode[] = [];
       while (i < lines.length && lines[i].startsWith('|')) {
         const cells = lines[i].split('|').filter(Boolean).map((c) => c.trim());
-        rows.push(<tr key={`tr-${i}`}>{cells.map((c, ci) => <td key={ci} className="px-3 py-1.5 border border-border text-sm">{processInline(c)}</td>)}</tr>);
+        rows.push(<tr key={`tr-${i}`} className="even:bg-surface-secondary/50">{cells.map((c, ci) => <td key={ci} className="px-4 py-2.5 border border-border text-sm text-text">{processInline(c)}</td>)}</tr>);
         i++;
       }
       elements.push(
-        <div key={`tbl-${elements.length}`} className="overflow-x-auto my-2">
+        <div key={`tbl-${elements.length}`} className="overflow-x-auto my-3 rounded-xl border border-border">
           <table className="w-full border-collapse">
-            <thead><tr>{headers.map((h, hi) => <th key={hi} className="px-3 py-1.5 border border-border bg-surface-secondary text-left text-xs font-medium text-text-secondary uppercase tracking-wider">{h}</th>)}</tr></thead>
+            <thead><tr className="bg-surface-tertiary">{headers.map((h, hi) => <th key={hi} className="px-4 py-2.5 border border-border text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">{h}</th>)}</tr></thead>
             <tbody>{rows}</tbody>
           </table>
         </div>
@@ -134,11 +199,11 @@ export function renderMarkdown(content: string): ReactNode[] {
       continue;
     }
 
-    if (/^---/.test(line) || /^___/.test(line)) { elements.push(<hr key={`hr-${elements.length}`} />); i++; continue; }
+    if (/^---/.test(line) || /^___/.test(line)) { elements.push(<hr key={`hr-${elements.length}`} className="my-4 border-border" />); i++; continue; }
 
     if (line.trim() === '') { i++; continue; }
 
-    elements.push(<p key={`p-${elements.length}`}>{processInline(line)}</p>);
+    elements.push(<p key={`p-${elements.length}`} className="text-text leading-relaxed mb-2">{processInline(line)}</p>);
     i++;
   }
 

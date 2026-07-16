@@ -233,7 +233,7 @@ function ProfileBadge() {
           </div>
           <div className="flex items-center gap-2 text-xs">
             <Calendar className="w-3.5 h-3.5 text-primary-500 flex-shrink-0" />
-            <span className="text-text-secondary truncate">Joined {new Date(user.createdAt).toLocaleDateString()}</span>
+            <span className="text-text-secondary truncate">Joined {user.created_at ? new Date(user.created_at).toLocaleDateString() : ''}</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
             <Shield className="w-3.5 h-3.5 text-primary-500 flex-shrink-0" />

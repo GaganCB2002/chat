@@ -35,3 +35,5 @@ export const COLORS = {
     emerald: '#34D399',
   },
 } as const;
+
+export { Logo, LogoMark } from './Logo';

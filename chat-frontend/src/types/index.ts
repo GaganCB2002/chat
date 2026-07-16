@@ -154,9 +154,13 @@ export interface TokenQuota {
 
 export interface AuthUser {
   id: string;
+  username: string;
   name: string;
+  first_name: string;
+  last_name: string;
   email: string;
-  createdAt: string;
+  age: number | null;
+  created_at?: string;
 }
 
 export interface CaptchaData {

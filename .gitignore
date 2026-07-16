@@ -7,3 +7,8 @@ chat-frontend/models/
 .DS_Store
 Thumbs.db
 ollama/
+backend/__pycache__/
+backend/kortex.db
+backend/*.pyc
+backend/app/__pycache__/
+backend/app/routers/__pycache__/

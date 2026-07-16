@@ -1,18 +1,24 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { Search, X, ArrowUp, ArrowDown, AlertCircle, Bot, Loader2, Square } from 'lucide-react';
+import { Search, X, ArrowUp, ArrowDown, AlertCircle, Bot, Square, ChevronsDown, Clock, Loader2, CheckCircle2, XCircle, ChevronUp, ChevronDown, MessageSquare } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useChatStore } from '../../stores/chatStore';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { WelcomeScreen } from './WelcomeScreen';
+import { TypingIndicator } from './TypingIndicator';
 import { Virtuoso } from 'react-virtuoso';
+import type { VirtuosoHandle } from 'react-virtuoso';
 import { renderMarkdown } from '../../utils/markdown';
 
 export function ChatView() {
-  const { chats, currentChatId, sendMessage, isTyping, streamingContent, setView, ollamaError, stopGeneration } = useChatStore();
+  const { chats, currentChatId, sendMessage, isTyping, streamingContent, setView, ollamaError, stopGeneration, messageQueue } = useChatStore();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchIndex, setSearchIndex] = useState(0);
+  const [atBottom, setAtBottom] = useState(true);
+  const [queueExpanded, setQueueExpanded] = useState(true);
 
   const currentChat = chats.find((c) => c.id === currentChatId);
   const messages = currentChat?.messages ?? [];
@@ -65,7 +71,10 @@ export function ChatView() {
     }
   };
 
-  const streamingMsg = isTyping && streamingContent ? { id: 'streaming', role: 'assistant' as const, content: streamingContent, timestamp: new Date(), action: 'none' as const } : null;
+  const streamingMsg = isTyping ? { id: 'streaming', role: 'assistant' as const, content: streamingContent, timestamp: new Date(), action: 'none' as const } : null;
+
+  const processingCount = messageQueue.filter((q) => q.status === 'processing').length;
+  const queuedCount = messageQueue.filter((q) => q.status === 'queued').length;
 
   if (messages.length === 0 && !streamingMsg) {
     return (
@@ -106,9 +115,13 @@ export function ChatView() {
       )}
       <div className="flex-1 overflow-hidden py-3 bg-[#e8ded1] dark:bg-[#0b141a] bg-opacity-30 relative">
         <Virtuoso
+          ref={virtuosoRef}
           className="h-full scrollbar-subtle"
           data={messages}
           initialTopMostItemIndex={messages.length - 1}
+          followOutput="smooth"
+          atBottomStateChange={setAtBottom}
+          atBottomThreshold={80}
           itemContent={(index, msg) => (
             <ChatMessage
               key={msg.id}
@@ -125,15 +138,9 @@ export function ChatView() {
                       <Bot className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
                     </div>
                     <div className="flex flex-col max-w-[75%] min-w-0 items-start w-full">
-                      {streamingContent === 'I\'m thinking...' && (
-                        <div className="relative rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm bg-white dark:bg-surface-secondary text-text rounded-tl-sm">
-                          <div className="flex items-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
-                            <span className="text-text-secondary">I'm thinking...</span>
-                          </div>
-                        </div>
-                      )}
-                      {streamingContent !== 'I\'m thinking...' && (
+                      {!streamingContent ? (
+                        <TypingIndicator />
+                      ) : (
                         <div className="relative rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm bg-white dark:bg-surface-secondary text-text rounded-tl-sm w-full">
                           <div className="prose prose-sm dark:prose-invert max-w-none prose-code:before:content-none prose-code:after:content-none">
                             {renderMarkdown(streamingContent)}
@@ -148,6 +155,140 @@ export function ChatView() {
             )
           }}
         />
+
+        {/* Scroll to bottom button */}
+        {!atBottom && (
+          <button
+            onClick={() => virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior: 'smooth', align: 'end' })}
+            className="absolute left-4 bottom-4 z-10 flex items-center justify-center w-9 h-9 rounded-full bg-surface border border-border shadow-lg text-text-secondary hover:text-text hover:bg-surface-secondary hover:shadow-xl transition-all duration-200 group"
+            title="Scroll to latest"
+          >
+            <ChevronsDown className="w-[18px] h-[18px] group-hover:translate-y-0.5 transition-transform" />
+          </button>
+        )}
+
+        {/* Queue Panel — Top Right Corner */}
+        <AnimatePresence>
+          {messageQueue.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, x: 20, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 20, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="absolute top-3 right-3 z-20 w-72"
+            >
+              <div className="rounded-2xl bg-surface/95 backdrop-blur-xl border border-border shadow-2xl overflow-hidden">
+                {/* Header — always visible, clickable to collapse/expand */}
+                <button
+                  onClick={() => setQueueExpanded(!queueExpanded)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-surface-secondary/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="relative">
+                      <MessageSquare className="w-4 h-4 text-primary-500" />
+                      <span className="absolute -top-1 -right-1.5 w-3.5 h-3.5 rounded-full bg-primary-500 text-[8px] font-bold text-white flex items-center justify-center">
+                        {messageQueue.length}
+                      </span>
+                    </div>
+                    <span className="text-xs font-semibold text-text">Queue</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {processingCount > 0 && (
+                      <span className="flex items-center gap-1 text-[10px] font-medium text-primary-500">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        {processingCount} active
+                      </span>
+                    )}
+                    {queuedCount > 0 && (
+                      <span className="text-[10px] font-medium text-text-tertiary">
+                        {queuedCount} waiting
+                      </span>
+                    )}
+                    {queueExpanded ? (
+                      <ChevronUp className="w-3.5 h-3.5 text-text-tertiary" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-text-tertiary" />
+                    )}
+                  </div>
+                </button>
+
+                {/* Expandable Items */}
+                <AnimatePresence>
+                  {queueExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="border-t border-border" />
+                      <div className="p-2 space-y-1.5 max-h-64 overflow-y-auto scrollbar-subtle">
+                        {messageQueue.map((item, idx) => (
+                          <div
+                            key={item.id}
+                            className="flex items-start gap-2.5 px-3 py-2 rounded-xl bg-surface-secondary/50 border border-border/30"
+                          >
+                            <div className="flex-shrink-0 mt-0.5">
+                              {item.status === 'queued' && (
+                                <div className="w-5 h-5 rounded-full bg-surface-tertiary flex items-center justify-center">
+                                  <Clock className="w-3 h-3 text-text-tertiary" />
+                                </div>
+                              )}
+                              {item.status === 'processing' && (
+                                <div className="w-5 h-5 rounded-full bg-primary-50 dark:bg-primary-900/30 flex items-center justify-center">
+                                  <Loader2 className="w-3 h-3 text-primary-500 animate-spin" />
+                                </div>
+                              )}
+                              {item.status === 'completed' && (
+                                <div className="w-5 h-5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                </div>
+                              )}
+                              {item.status === 'failed' && (
+                                <div className="w-5 h-5 rounded-full bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center">
+                                  <XCircle className="w-3 h-3 text-accent-rose" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <span className="text-[10px] font-medium text-text-tertiary">#{idx + 1}</span>
+                                <span className={`text-[10px] font-medium px-1.5 py-px rounded-full ${
+                                  item.status === 'processing' ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400' :
+                                  item.status === 'queued' ? 'bg-surface-tertiary text-text-tertiary' :
+                                  item.status === 'completed' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600' :
+                                  'bg-rose-50 dark:bg-rose-900/20 text-accent-rose'
+                                }`}>
+                                  {item.status === 'processing' ? 'Processing' : item.status === 'queued' ? 'Queued' : item.status === 'completed' ? 'Done' : 'Failed'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-text leading-relaxed line-clamp-2 break-words">{item.content}</p>
+                              {item.status === 'processing' && (
+                                <div className="mt-1.5 flex items-center gap-2">
+                                  <div className="flex-1 h-1 rounded-full bg-surface-tertiary overflow-hidden">
+                                    <motion.div
+                                      className="h-full rounded-full bg-gradient-to-r from-primary-400 to-primary-600"
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${item.progress || 0}%` }}
+                                      transition={{ duration: 0.3, ease: 'easeOut' }}
+                                    />
+                                  </div>
+                                  <span className="text-[10px] font-medium text-text-tertiary tabular-nums">{item.progress || 0}%</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {isTyping && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
             <button

@@ -1,5 +1,14 @@
 import type { Chat } from '../types';
 
+function safeDate(v: unknown): Date {
+  if (v instanceof Date) return v;
+  if (typeof v === 'string' || typeof v === 'number') {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
+  return new Date();
+}
+
 export function exportChatAsJSON(chat: Chat): void {
   const data = {
     title: chat.title,
@@ -7,7 +16,7 @@ export function exportChatAsJSON(chat: Chat): void {
     messages: chat.messages.map((m) => ({
       role: m.role,
       content: m.content,
-      timestamp: m.timestamp.toISOString(),
+      timestamp: safeDate(m.timestamp).toISOString(),
     })),
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -22,7 +31,7 @@ export function exportChatAsTXT(chat: Chat): void {
   lines.push('');
   for (const msg of chat.messages) {
     const role = msg.role === 'user' ? 'You' : 'Assistant';
-    const time = msg.timestamp.toLocaleString();
+    const time = safeDate(msg.timestamp).toLocaleString();
     lines.push(`[${role} — ${time}]`);
     lines.push(msg.content);
     lines.push('');

@@ -1,32 +1,22 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '../../utils/cn';
 
-const CAPTCHA_LENGTH = 6;
+const CAPTCHA_LENGTH = 8;
 const CAPTCHA_EXPIRY_MS = 4 * 60 * 1000;
 
 function generateCaptcha(): string {
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const lower = 'abcdefghjkmnpqrstuvwxyz';
-  const digits = '23456789';
-  const all = upper + lower + digits;
+  const digits = '0123456789';
   let result = '';
-  result += upper[Math.floor(Math.random() * upper.length)];
-  result += lower[Math.floor(Math.random() * lower.length)];
-  result += digits[Math.floor(Math.random() * digits.length)];
-  for (let i = 3; i < CAPTCHA_LENGTH; i++) {
-    result += all[Math.floor(Math.random() * all.length)];
+  for (let i = 0; i < CAPTCHA_LENGTH; i++) {
+    result += digits[Math.floor(Math.random() * digits.length)];
   }
-  return result.split('').sort(() => Math.random() - 0.5).join('');
-}
-
-function captchaColor(index: number): string {
-  const colors = ['#d44c4c', '#4c8ad4', '#4cd47c', '#d4a64c', '#8a4cd4', '#d44c8a'];
-  return colors[index % colors.length];
+  return result;
 }
 
 interface CaptchaProps {
   onValidate: (valid: boolean) => void;
   disabled?: boolean;
+  key?: string | number;
 }
 
 export function Captcha({ onValidate, disabled }: CaptchaProps) {
@@ -55,10 +45,11 @@ export function Captcha({ onValidate, disabled }: CaptchaProps) {
   }, []);
 
   const handleChange = useCallback((val: string) => {
+    if (!/^\d*$/.test(val)) return;
     setInput(val);
     setError(false);
     if (val.length >= CAPTCHA_LENGTH) {
-      const valid = val.toUpperCase() === code.toUpperCase();
+      const valid = val === code;
       setError(!valid);
       onValidateRef.current(valid);
       if (valid) setInput(val);
@@ -83,12 +74,11 @@ export function Captcha({ onValidate, disabled }: CaptchaProps) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 select-none">
+        <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 select-none">
           {code.split('').map((ch, i) => (
             <span
               key={`${i}-${ch}`}
-              style={{ color: captchaColor(i), transform: `rotate(${(i - 2) * 3}deg)` }}
-              className="inline-block text-lg font-bold font-mono tracking-widest"
+              className="inline-block text-xl font-bold font-mono tracking-widest text-gray-700 dark:text-gray-200"
             >
               {ch}
             </span>
@@ -102,9 +92,10 @@ export function Captcha({ onValidate, disabled }: CaptchaProps) {
       <div className="relative">
         <input
           type="text"
+          inputMode="numeric"
           value={input}
           onChange={(e) => handleChange(e.target.value)}
-          placeholder="Enter the code above"
+          placeholder="Enter 8-digit code"
           maxLength={CAPTCHA_LENGTH}
           disabled={disabled}
           className={cn('w-full h-10 px-3 text-sm rounded-xl border bg-surface-secondary text-text placeholder-text-tertiary focus:outline-none focus:ring-2 transition-all', error ? 'border-accent-rose focus:ring-accent-rose/30' : expired ? 'border-amber-400 focus:ring-amber-400/30' : 'border-border focus:ring-primary-500/30 focus:border-primary-500')}

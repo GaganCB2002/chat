@@ -1,3 +1,5 @@
+const API_BASE = '/api/gemini';
+
 export interface GeminiMessage {
   role: 'user' | 'model';
   parts: { text: string }[];
@@ -17,48 +19,27 @@ export async function chatCompletionGemini(
   onToken?: (token: string) => void,
   signal?: AbortSignal
 ): Promise<string> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new GeminiError('Gemini API key not configured in .env', 401);
-  }
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:streamGenerateContent?alt=sse&key=${apiKey}`;
-
-  // Map roles to Gemini roles ('user' or 'model')
-  // System prompts can be prepended to the first user message or passed in 'systemInstruction'.
-  // For simplicity here, we map 'assistant' to 'model', and 'system'/'user' to 'user'.
-  const geminiMessages: GeminiMessage[] = messages.map((m) => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }));
-
-  // Combine consecutive messages with the same role, as Gemini strictly requires alternating roles.
-  const combinedMessages: GeminiMessage[] = [];
-  for (const msg of geminiMessages) {
-    const last = combinedMessages[combinedMessages.length - 1];
-    if (last && last.role === msg.role) {
-      last.parts[0].text += '\n\n' + msg.parts[0].text;
-    } else {
-      combinedMessages.push({ role: msg.role, parts: [{ text: msg.parts[0].text }] });
-    }
-  }
-
-  const res = await fetch(url, {
+  const res = await fetch(`${API_BASE}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: combinedMessages }),
+    body: JSON.stringify({ messages }),
     signal,
   });
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new GeminiError(`Gemini chat failed: ${errorData?.error?.message || res.statusText}`, res.status);
+    throw new GeminiError(`Gemini chat failed: ${errorData?.detail || res.statusText}`, res.status);
   }
 
   let full = '';
   if (onToken) {
-    if (res.body) {
-      const reader = res.body.getReader();
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+    try {
+      reader = res.body?.getReader() ?? null;
+    } catch {
+      reader = null;
+    }
+    if (reader) {
       const decoder = new TextDecoder();
       let buffer = '';
 
@@ -85,6 +66,19 @@ export async function chatCompletionGemini(
             }
           } catch {
             // Skip malformed JSON lines
+          }
+        }
+      }
+      if (buffer.trim()) {
+        const trimmed = buffer.trim();
+        if (trimmed.startsWith('data: ')) {
+          const dataStr = trimmed.slice(6);
+          if (dataStr !== '[DONE]') {
+            try {
+              const data = JSON.parse(dataStr);
+              const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (text) { full += text; onToken(text); }
+            } catch { /* skip */ }
           }
         }
       }

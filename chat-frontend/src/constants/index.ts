@@ -24,7 +24,7 @@ export const MODELS: ModelOption[] = [
   { id: 'qwen3.5', name: 'Qwen 3.5', provider: 'Alibaba via Ollama', description: '2B local model (~2.7GB)', icon: '🧠' },
   { id: 'gemma2', name: 'Gemma 2', provider: 'Google via Ollama', description: 'Lightweight 2B local model (~1.6GB)', icon: '🟢' },
   { id: 'llama3', name: 'Llama 3.2', provider: 'Meta via Ollama', description: '1.3B local model (~1.3GB)', icon: '🎯' },
-  { id: 'gemini-pro', name: 'Gemini 1.5 Pro', provider: 'Google', description: 'Advanced reasoning (Online only)', icon: '✨' },
+  { id: 'gemini-pro', name: 'Gemini 3.5 Flash', provider: 'Google', description: 'Fast online model', icon: '✨' },
 ];
 
 export const MODEL_OLLAMA_MAP: Record<string, string> = {

@@ -1,4 +1,4 @@
-const OLLAMA_HOST = 'http://127.0.0.1:11434';
+const API_BASE = '/api/ollama';
 
 export interface OllamaMessage {
   role: 'user' | 'assistant' | 'system';
@@ -45,7 +45,7 @@ export class OllamaError extends Error {
 }
 
 async function request<T>(path: string, body?: unknown): Promise<T> {
-  const url = `${OLLAMA_HOST}${path}`;
+  const url = `${API_BASE}${path}`;
   const res = await fetch(url, {
     method: body ? 'POST' : 'GET',
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
@@ -59,7 +59,7 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 
 export async function listModels(): Promise<OllamaModel[]> {
   try {
-    const data = await request<{ models: OllamaModel[] }>('/api/tags');
+    const data = await request<{ models: OllamaModel[] }>('/tags');
     return data.models ?? [];
   } catch {
     return [];
@@ -68,7 +68,7 @@ export async function listModels(): Promise<OllamaModel[]> {
 
 export async function checkConnection(): Promise<boolean> {
   try {
-    const res = await fetch(`${OLLAMA_HOST}/`);
+    const res = await fetch(`${API_BASE}/`);
     return res.ok;
   } catch {
     return false;
@@ -81,7 +81,7 @@ export async function chatCompletion(
   onToken?: (token: string) => void,
   signal?: AbortSignal
 ): Promise<string> {
-  const url = `${OLLAMA_HOST}/api/chat`;
+  const url = `${API_BASE}/chat`;
   let res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -93,145 +93,32 @@ export async function chatCompletion(
     if (onToken) {
       onToken(`\n> **System**: Model \`${model}\` not found locally. Downloading automatically... This may take a few minutes.\n\n`);
     }
-    
-    const pullRes = await fetch(`${OLLAMA_HOST}/api/pull`, {
+
+    const pullRes = await fetch(`${API_BASE}/pull`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: model, stream: true }),
       signal,
     });
-    
+
     if (!pullRes.ok) {
       throw new OllamaError(`Ollama pull failed: ${pullRes.statusText}`, pullRes.status);
     }
-    
+
     if (pullRes.body) {
       const reader = pullRes.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
       let lastReported = 0;
-      
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
+
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
-        
-        for (const line of lines.filter(Boolean)) {
-          try {
-            const data = JSON.parse(line);
-            if (data.total && data.completed) {
-              const pct = Math.floor((data.completed / data.total) * 100);
-              if (pct >= lastReported + 10) { // Report every 10%
-                if (onToken) onToken(`> **Download progress**: ${pct}%\n`);
-                lastReported = pct;
-              }
-            } else if (data.status && !data.total) {
-              if (onToken && data.status !== 'downloading' && data.status !== 'success') {
-                onToken(`> **Status**: ${data.status}\n`);
-              }
-            }
-          } catch {
-            // ignore
-          }
-        }
-      }
-    }
-    
-    if (onToken) {
-      onToken(`\n> **System**: Download complete. Generating response...\n\n---\n\n`);
-    }
 
-    // Retry chat after pull
-    res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: !!onToken }),
-      signal,
-    });
-  }
-
-  if (!res.ok) {
-    throw new OllamaError(`Ollama chat failed: ${res.statusText}`, res.status);
-  }
-
-  if (onToken) {
-    const reader = res.body?.getReader();
-    if (!reader) throw new OllamaError('No response body', 0);
-    const decoder = new TextDecoder();
-    let full = '';
-    let buffer = '';
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? ''; // Keep the last partial line in the buffer
-      for (const line of lines.filter(Boolean)) {
-        try {
-          const data = JSON.parse(line) as OllamaChatResponse;
-          if (data.message?.content) {
-            full += data.message.content;
-            onToken(data.message.content);
-          }
-        } catch (e) {
-          console.warn('Failed to parse chunk line', line, e);
-        }
-      }
-    }
-    return full;
-  }
-
-  const data = await res.json() as OllamaChatResponse;
-  return data.message?.content ?? '';
-}
-
-export async function generateCompletion(
-  model: string,
-  prompt: string,
-  onToken?: (token: string) => void,
-  signal?: AbortSignal
-): Promise<string> {
-  const url = `${OLLAMA_HOST}/api/generate`;
-  let res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, prompt, stream: !!onToken }),
-    signal,
-  });
-
-  if (res.status === 404) {
-    if (onToken) {
-      onToken(`\n> **System**: Model \`${model}\` not found locally. Downloading automatically... This may take a few minutes.\n\n`);
-    }
-    
-    const pullRes = await fetch(`${OLLAMA_HOST}/api/pull`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: model, stream: true }),
-      signal,
-    });
-    
-    if (!pullRes.ok) {
-      throw new OllamaError(`Ollama pull failed: ${pullRes.statusText}`, pullRes.status);
-    }
-    
-    if (pullRes.body) {
-      const reader = pullRes.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let lastReported = 0;
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        
         for (const line of lines.filter(Boolean)) {
           try {
             const data = JSON.parse(line);
@@ -257,7 +144,127 @@ export async function generateCompletion(
       onToken(`\n> **System**: Download complete. Generating response...\n\n---\n\n`);
     }
 
-    // Retry chat after pull
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages, stream: !!onToken }),
+      signal,
+    });
+  }
+
+  if (!res.ok) {
+    throw new OllamaError(`Ollama chat failed: ${res.statusText}`, res.status);
+  }
+
+  if (onToken) {
+    const reader = res.body?.getReader();
+    if (!reader) throw new OllamaError('No response body', 0);
+    const decoder = new TextDecoder();
+    let full = '';
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines.filter(Boolean)) {
+        try {
+          const data = JSON.parse(line) as OllamaChatResponse;
+          if (data.message?.content) {
+            full += data.message.content;
+            onToken(data.message.content);
+          }
+        } catch (e) {
+          console.warn('Failed to parse chunk line', line, e);
+        }
+      }
+    }
+    if (buffer.trim()) {
+      try {
+        const data = JSON.parse(buffer) as OllamaChatResponse;
+        if (data.message?.content) {
+          full += data.message.content;
+          onToken(data.message.content);
+        }
+      } catch { /* skip partial trailing data */ }
+    }
+    return full;
+  }
+
+  const data = await res.json() as OllamaChatResponse;
+  return data.message?.content ?? '';
+}
+
+export async function generateCompletion(
+  model: string,
+  prompt: string,
+  onToken?: (token: string) => void,
+  signal?: AbortSignal
+): Promise<string> {
+  const url = `${API_BASE}/generate`;
+  let res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, prompt, stream: !!onToken }),
+    signal,
+  });
+
+  if (res.status === 404) {
+    if (onToken) {
+      onToken(`\n> **System**: Model \`${model}\` not found locally. Downloading automatically... This may take a few minutes.\n\n`);
+    }
+
+    const pullRes = await fetch(`${API_BASE}/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: model, stream: true }),
+      signal,
+    });
+
+    if (!pullRes.ok) {
+      throw new OllamaError(`Ollama pull failed: ${pullRes.statusText}`, pullRes.status);
+    }
+
+    if (pullRes.body) {
+      const reader = pullRes.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let lastReported = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines.filter(Boolean)) {
+          try {
+            const data = JSON.parse(line);
+            if (data.total && data.completed) {
+              const pct = Math.floor((data.completed / data.total) * 100);
+              if (pct >= lastReported + 10) {
+                if (onToken) onToken(`> **Download progress**: ${pct}%\n`);
+                lastReported = pct;
+              }
+            } else if (data.status && !data.total) {
+              if (onToken && data.status !== 'downloading' && data.status !== 'success') {
+                onToken(`> **Status**: ${data.status}\n`);
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }
+
+    if (onToken) {
+      onToken(`\n> **System**: Download complete. Generating response...\n\n---\n\n`);
+    }
+
     res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -293,6 +300,15 @@ export async function generateCompletion(
           console.warn('Failed to parse chunk line', line, e);
         }
       }
+    }
+    if (buffer.trim()) {
+      try {
+        const data = JSON.parse(buffer) as OllamaGenerateResponse;
+        if (data.response) {
+          full += data.response;
+          onToken(data.response);
+        }
+      } catch { /* skip partial trailing data */ }
     }
     return full;
   }
