@@ -1,254 +1,288 @@
-# Kortex — Local & Online AI Chat
+# Kortex — AI Chat Platform
 
-A fully local AI chat application that runs against **Ollama** models on your machine, with optional **Online Mode** utilizing the **Google Gemini API**. Built with React 19, TypeScript, Zustand, and Tailwind CSS.
+A full-stack AI chat application with a **React** frontend and **FastAPI** backend. Supports both **local Ollama models** (fully offline) and **Google Gemini API** (cloud). Features real-time streaming, user authentication, conversation management, and a professional UI.
 
 ---
 
 ## Quick Start
 
+### Prerequisites
+- **Node.js** ≥ 18 & **npm**
+- **Python** ≥ 3.11
+- **Ollama** ([ollama.com](https://ollama.com)) — for local models
+- **Google Gemini API key** — for online mode (optional)
+
+### 1. Clone & Setup Environment
+
 ```bash
-# Step 1: Install Ollama (https://ollama.com) and pull models
-ollama pull qwen3.5:2b
-ollama pull llama3.2:1b
+git clone https://github.com/GaganCB2002/chat.git
+cd chat
+```
 
-# Step 2: Start the Ollama server (keeps models loaded in RAM)
-.\start-ollama.bat
+Create a `.env` file in the project root:
 
-# Step 3: Install project dependencies & start
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+VITE_GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+> The `JWT_SECRET` is auto-generated on first backend startup if not present.
+
+### 2. Start Backend
+
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --port 8000
+```
+
+### 3. Start Frontend
+
+```bash
+cd chat-frontend
 npm install
 npm run dev
 ```
+
+### 4. Start Ollama (for local models)
+
+```bash
+ollama pull gemma2:2b
+ollama pull qwen3.5:latest
+.\start-ollama.bat
+```
+
+Or run everything at once with:
+
+```bash
+.\start.bat
+```
+
+The app will be available at **http://localhost:5173**
 
 ---
 
 ## Features
 
-### Core Chat
-- **Local & Cloud AI**: Switch between offline Ollama models and online Google Gemini
-- **Streaming Responses**: Real-time token-by-token streaming with live markdown rendering
-- **Message Queue**: Messages sent during generation are queued and auto-processed sequentially
-- **Stop Generation**: Cancel AI response mid-generation
-- **Regenerate**: Re-generate the last assistant response
-- **Edit & Delete**: Edit sent messages or delete them
-- **Copy & Share**: Copy message content with one click
-- **Like/Dislike**: Rate assistant responses
+### 🤖 AI Chat
+- **Dual Mode** — Switch between offline Ollama models and online Google Gemini
+- **Streaming Responses** — Real-time token-by-token streaming with live markdown rendering
+- **Thinking Animation** — Animated "Thinking..." indicator with spinner while AI processes
+- **Message Queue** — Messages sent during generation are queued and processed sequentially with a collapsible queue panel in the top-right corner showing real-time progress
+- **Stop Generation** — Cancel AI response mid-generation
+- **Regenerate** — Re-generate the last assistant response
+- **Edit & Delete** — Edit sent messages or delete them
+- **Copy & Share** — Copy message content with one click
+- **Like/Dislike** — Rate assistant responses
 
-### File & Media
-- **Drag & Drop**: Drop files/images directly onto the chat input
-- **File Upload**: Upload images, documents, code, archives via paperclip button
-- **File Context**: Uploaded files are automatically attached as context to messages
-- **Image Preview**: Inline image rendering with click-to-open lightbox
+### 🔐 Authentication & Security
+- **User Registration & Login** — Full account system with email, first/last name, password
+- **Database-Backed Sessions** — Secure token-based auth stored in SQLite (no JWT)
+- **Password Reset** — Forgot password flow using Ethereal Email (temporary SMTP for local dev)
+- **bcrypt Hashing** — Passwords hashed with bcrypt via Passlib
+- **Trial System** — 5 free messages for unauthenticated users
+- **CAPTCHA** — Simple math captcha on registration
 
-### Chat Management
-- **Conversation History**: All chats saved locally with full search
-- **Chat Export**: Export conversations as JSON or TXT
-- **Folders**: Organize chats into folders (Work, Personal, Research, Learning)
-- **Pin Messages**: Pin important messages for quick reference
-- **Auto-Summarize**: Automatic title generation after first exchange
-- **Message Search**: Ctrl+F to search within current chat with result navigation
+### 📁 File & Media
+- **Drag & Drop** — Drop files/images directly onto the chat input
+- **File Upload** — Upload images, documents, code, archives via paperclip button
+- **File Context** — Uploaded files are automatically attached as context to messages
+- **Image Preview** — Inline image rendering with click-to-open lightbox
 
-### UI & Experience
-- **Dashboard**: Active model status, live task queue with progress bars, recent conversations
-- **Command Palette**: Ctrl+K to quickly search chats and trigger actions
-- **Theme**: Light/Dark/System mode with smooth CSS transitions
-- **Responsive**: Mobile-friendly with collapsible sidebar
-- **Keyboard Shortcuts**: Ctrl+N (new chat), Ctrl+Shift+T (theme), Ctrl+B (sidebar), and more
-- **Speech-to-Text**: Voice input via Web Speech API (mic button)
-- **Developer Mode**: Bottom status bar showing model, Ollama status, and version info
+### 💬 Chat Management
+- **Conversation History** — All chats saved locally with full search
+- **Chat Export** — Export conversations as JSON or TXT
+- **Folders** — Organize chats into folders (Work, Personal, Research, Learning)
+- **Pin Messages** — Pin important messages for quick reference
+- **Auto-Summarize** — Automatic title generation after first exchange
+- **Message Search** — Ctrl+F to search within current chat with result navigation
+- **Scroll to Bottom** — Down-arrow button on the left to jump to latest message
 
-### Markdown Support
-- **Full Renderer**: Bold, italic, inline code, code blocks with copy button
-- **Tables**: Full table rendering with headers
-- **Strikethrough**: ~~text~~ support
-- **Images**: Inline image display
-- **Links**: Clickable links opening in new tab
-- **Blockquotes & Lists**: Nested quotes and ordered/unordered lists
-
-### Authentication & Security
-- **User Accounts**: Register/login with localStorage persistence
-- **Trial System**: 5 free messages for unauthenticated users
-- **Error Boundary**: Prevents white-screen crashes with graceful error recovery
-- **CAPTCHA**: Simple math captcha for registration
+### 🎨 UI & Experience
+- **Dashboard** — Active model status, live task queue with progress bars, recent conversations
+- **Command Palette** — Ctrl+K to quickly search chats and trigger actions
+- **Theme** — Light/Dark/System mode with smooth CSS transitions
+- **Responsive** — Mobile-friendly with collapsible sidebar
+- **Keyboard Shortcuts** — Full suite of shortcuts (see table below)
+- **Speech-to-Text** — Voice input via Web Speech API (mic button)
+- **Markdown Rendering** — Full renderer with code blocks, tables, Mermaid diagrams, blockquotes, lists, images, and links
 
 ---
 
 ## Project Architecture
 
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#d2b48c', 'primaryTextColor': '#000', 'primaryBorderColor': '#8c7355', 'lineColor': '#8c7355'}}}%%
-graph TD
-    UI[UI Layer: React Components]
-    Store[State Layer: Zustand Stores]
-    API_Ollama[API Layer: Ollama HTTP Client]
-    API_Gemini[API Layer: Gemini HTTP Client]
-    Queue[Message Queue]
-    Ollama[(Ollama Backend localhost:11434)]
-    Gemini[(Google Gemini API)]
-
-    UI -->|Dispatches Actions| Store
-    Store -->|Updates State| UI
-    Store -->|Queue Messages| Queue
-    Queue -->|Sequential Processing| API_Ollama
-    Queue -->|Sequential Processing| API_Gemini
-    Store -->|chatCompletion| API_Ollama
-    Store -->|chatCompletionGemini| API_Gemini
-    API_Ollama --> Ollama
-    API_Gemini --> Gemini
+```
+chat/
+├── .env                      # Environment variables (API keys, secrets)
+├── start.bat                 # One-click launcher for everything
+├── start-ollama.bat          # Ollama server launcher
+│
+├── backend/                  # FastAPI Backend
+│   ├── main.py               # App entry point, CORS, lifespan
+│   ├── requirements.txt      # Python dependencies
+│   ├── generate_secret.py    # Auto-generates JWT_SECRET in .env
+│   ├── app/
+│   │   ├── auth.py           # Token creation, password hashing, session validation
+│   │   ├── database.py       # Async SQLAlchemy engine & session factory
+│   │   ├── models.py         # User, AuthToken, Chat, Message ORM models
+│   │   ├── schemas.py        # Pydantic request/response schemas
+│   │   └── routers/
+│   │       ├── auth.py       # /api/auth/* — register, login, logout, forgot-password
+│   │       ├── chats.py      # /api/chats/* — CRUD for conversations
+│   │       ├── gemini.py     # /api/gemini/* — Google Gemini streaming proxy
+│   │       └── ollama.py     # /api/ollama/* — Ollama streaming proxy
+│   └── kortex.db             # SQLite database (auto-created)
+│
+└── chat-frontend/            # React Frontend
+    ├── package.json
+    ├── vite.config.ts
+    └── src/
+        ├── api/              # HTTP clients (ollama.ts, gemini.ts)
+        ├── components/
+        │   ├── auth/         # AuthModal, Captcha
+        │   ├── chat/         # ChatView, ChatInput, ChatMessage, TypingIndicator
+        │   ├── common/       # CommandPalette
+        │   ├── layout/       # AppShell
+        │   ├── sidebar/      # Sidebar
+        │   ├── topbar/       # TopBar
+        │   └── ui/           # Button, Dialog, Tooltip primitives
+        ├── stores/           # Zustand stores (chat, auth, settings)
+        ├── types/            # TypeScript type definitions
+        └── utils/            # Markdown renderer, export helpers
 ```
 
 ---
 
-## Complete Input Flow
+## Architecture Diagram
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#d2b48c', 'primaryTextColor': '#000', 'primaryBorderColor': '#8c7355', 'lineColor': '#8c7355'}}}%%
+graph TD
+    Browser[React Frontend :5173]
+    Backend[FastAPI Backend :8000]
+    DB[(SQLite Database)]
+    Ollama[(Ollama :11434)]
+    Gemini[(Google Gemini API)]
+
+    Browser -->|Auth, Chat CRUD| Backend
+    Browser -->|Stream AI Responses| Backend
+    Backend -->|Token Sessions| DB
+    Backend -->|User & Chat Data| DB
+    Backend -->|Local Models| Ollama
+    Backend -->|Cloud Models| Gemini
+```
+
+---
+
+## API Endpoints
+
+### Authentication (`/api/auth`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/auth/register` | Create a new user account |
+| `POST` | `/api/auth/login` | Login and receive session token |
+| `POST` | `/api/auth/logout` | Invalidate current session |
+| `GET`  | `/api/auth/me` | Get current user profile |
+| `POST` | `/api/auth/forgot-password` | Trigger password reset via Ethereal Email |
+
+### Chat (`/api/chats`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET`  | `/api/chats/` | List user's conversations |
+| `POST` | `/api/chats/` | Create a new conversation |
+| `GET`  | `/api/chats/{id}` | Get conversation by ID |
+| `DELETE` | `/api/chats/{id}` | Delete a conversation |
+
+### AI Providers
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET`  | `/api/ollama/` | Check Ollama connection status |
+| `GET`  | `/api/ollama/tags` | List available local models |
+| `POST` | `/api/ollama/chat` | Stream chat completion from Ollama |
+| `POST` | `/api/gemini/chat` | Stream chat completion from Gemini |
+
+---
+
+## Complete Message Flow
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'actorBkg': '#d2b48c', 'actorBorder': '#8c7355', 'actorTextColor': '#000', 'noteBkgColor': '#e6d5b8', 'noteBorderColor': '#8c7355', 'noteTextColor': '#000', 'signalColor': '#000'}}}%%
 sequenceDiagram
     participant User
-    participant UI as ChatView / AppShell
-    participant Store as chatStore
-    participant Queue as Message Queue
-    participant API as API (Ollama/Gemini)
+    participant Frontend as React Frontend
+    participant Backend as FastAPI Backend
+    participant AI as Ollama / Gemini
 
-    User->>UI: Types message & presses Enter
-    UI->>Store: sendMessage(content)
-
-    rect rgb(230, 213, 184)
-        Note over Store: Phase 1: Chat Creation & Validation
-        alt No active chat
-            Store->>Store: createNewChat()
-            Store->>UI: Update URL via pushState(/chat/:id)
-        end
-    end
-
-    rect rgb(210, 180, 140)
-        Note over Store: Phase 2: Queue Check
-        alt Is Typing
-            Store->>Queue: Queue message (pending)
-            Queue-->>UI: Show pending badge
-        else Not Typing
-            Store->>Store: Process immediately
-        end
-    end
+    User->>Frontend: Types message & presses Enter
+    Frontend->>Frontend: Show "Thinking..." animation
 
     rect rgb(230, 213, 184)
-        Note over Store,API: Phase 3: Model Routing
-        alt mode === 'online' AND model === 'gemini-pro'
-            Store->>API: chatCompletionGemini(messages)
-        else
-            Store->>API: chatCompletion(ollamaModel, messages)
+        Note over Frontend: Queue Check
+        alt AI is already generating
+            Frontend->>Frontend: Queue message (show in top-right panel)
+        else AI is idle
+            Frontend->>Frontend: Process immediately
         end
     end
 
+    Frontend->>Backend: POST /api/ollama/chat or /api/gemini/chat
+    Backend->>AI: Forward request with streaming
+
     rect rgb(210, 180, 140)
-        Note over API,UI: Phase 4: Streaming & Completion
+        Note over AI,Frontend: Streaming Response
         loop Every Token
-            API-->>Store: onToken(chunk)
-            Store-->>UI: Update streamingContent (Live Typing)
-            Store-->>Queue: Update progress (0-100%)
+            AI-->>Backend: Stream chunk
+            Backend-->>Frontend: SSE token
+            Frontend-->>Frontend: Remove "Thinking...", render markdown live
         end
-        API-->>Store: Full Response Completed
-        Store->>Store: Save Assistant Message, setTyping(false)
-        Store->>Queue: Process next queued message
-        Store->>UI: Render Markdown Message
     end
+
+    AI-->>Backend: Stream complete
+    Backend-->>Frontend: Done
+    Frontend->>Frontend: Save message, process next in queue
 ```
 
 ---
 
-## Online vs Offline Mode Flow
+## Tech Stack
 
-The application intelligently routes requests based on the selected mode.
+### Frontend
+| Technology | Purpose |
+|-----------|---------|
+| **React 19** | UI framework |
+| **TypeScript** | Type safety |
+| **Zustand** | Global state management with persist |
+| **Tailwind CSS v4** | Utility-first styling with dark mode |
+| **Framer Motion** | Animations and transitions |
+| **Lucide React** | SVG icon library |
+| **Radix UI** | Accessible dialog/dropdown/tooltip primitives |
+| **react-virtuoso** | Virtualized chat message list |
 
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#d2b48c', 'primaryTextColor': '#000', 'primaryBorderColor': '#8c7355', 'lineColor': '#8c7355'}}}%%
-graph TD
-    Start([User sends message]) --> ModeCheck{Check App Mode}
-
-    ModeCheck -->|Offline Mode| SendOllama[Send to Local Ollama Backend]
-    ModeCheck -->|Online Mode| ModelCheck{Check Selected Model}
-
-    ModelCheck -->|gemini-pro| SendGemini[Send to Google Gemini API]
-    ModelCheck -->|Other Models| CheckConn{Is Ollama Connected?}
-
-    CheckConn -->|Yes| SendOllama
-    CheckConn -->|No| ShowError[Show Connection Error Toast]
-```
-
----
-
-## Auto-Summarize Flow
-
-Automatically generates a descriptive title for new chats.
-
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'actorBkg': '#d2b48c', 'actorBorder': '#8c7355', 'actorTextColor': '#000', 'noteBkgColor': '#e6d5b8', 'noteBorderColor': '#8c7355', 'noteTextColor': '#000', 'signalColor': '#000'}}}%%
-sequenceDiagram
-    participant Store as chatStore
-    participant API as API (Ollama/Gemini)
-    participant UI as TopBar / Sidebar
-
-    Note over Store: First message exchange completes
-    Store->>Store: Check if chat has exactly 2 messages
-    Store->>API: Async Request: "Summarize this in 3-5 words"
-    API-->>Store: Returns generated title
-    Store->>Store: renameChat(chatId, newTitle)
-    Store->>UI: Re-render Sidebar and TopBar with new title
-```
-
----
-
-## File Upload Flow
-
-Supports both click-to-upload and drag-and-drop.
-
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#d2b48c', 'primaryTextColor': '#000', 'primaryBorderColor': '#8c7355', 'lineColor': '#8c7355'}}}%%
-graph TD
-    Upload([User clicks paperclip / drags file]) --> FileReader[Read file via FileReader API]
-    FileReader --> CreateObj[Create UploadedFile Object]
-    CreateObj --> Base64[Convert to Base64 dataUrl]
-    Base64 --> Store[Save to chatStore.uploadedFiles]
-    Store --> UI[Render thumbnail in ChatInput]
-
-    SendMsg --> Attach[Prepend file description to prompt]
-    Attach --> Backend[Send to model as text context]
-    Backend --> Clear[Auto-clear files after send]
-```
-
----
-
-## Tech Stack & Mode Mapping
-
-### Core Stack
-- **React 19 & TypeScript**: Robust, type-safe UI layer
-- **Zustand**: Lightweight global state management with persist middleware
-- **Tailwind CSS (v4)**: Utility-first styling with dark mode support
-- **Framer Motion**: Layout-aware animations and transitions
-- **Lucide React**: Clean, modern SVG icons
-- **Radix UI**: Accessible dialog, dropdown, tooltip primitives
-
-### Mode-Specific Backend Technologies
-
-**1. Offline Mode (Local Processing)**
-- **Tech:** Ollama (Local REST API) + Local GGUF Models
-- **Purpose:** 100% private, air-gapped operation. All requests go to `127.0.0.1:11434`. Models kept in RAM (`OLLAMA_KEEP_ALIVE=-1`) for zero-latency responses. Supports any Ollama model (Qwen, Llama, Phi, Gemma, Mistral, etc.)
-
-**2. Online Mode (Cloud Processing)**
-- **Tech:** Google Gemini API (REST over HTTP) + Gemini 1.5 Pro
-- **Purpose:** Unlocks cloud-based capabilities for advanced reasoning tasks too heavy for local hardware.
+### Backend
+| Technology | Purpose |
+|-----------|---------|
+| **FastAPI** | Async Python web framework |
+| **SQLAlchemy 2.0** | Async ORM with SQLite |
+| **aiosqlite** | Async SQLite driver |
+| **Passlib + bcrypt** | Password hashing |
+| **aiosmtplib** | Async SMTP for password reset emails |
+| **httpx** | Async HTTP client for AI provider proxying |
+| **Pydantic v2** | Request/response validation |
+| **Uvicorn** | ASGI server |
 
 ### Supported Models
 
-| Model ID | Name | Provider | Size |
-|----------|------|----------|------|
-| `qwen3.5` | Qwen 3.5 | Alibaba via Ollama | 2B (~2.7GB) |
-| `phi3` | Phi-3 Mini | Microsoft via Ollama | 3.8B (~2.5GB) |
-| `kortex-lite` | Kortex Lite | Ollama | 3.8B (aliased to Phi-3) |
-| `kortex-pro` | Kortex Pro | Ollama | 3.2B (aliased to Llama) |
-| `gemma4` | Gemma 4 | Google via Ollama | 9B (~8.9GB) |
-| `llama3` | Llama 3.2 | Meta via Ollama | 3.2B |
-| `mistral` | Mistral | Mistral AI via Ollama | 7B |
-| `gemini-pro` | Gemini 1.5 Pro | Google | Cloud (Online only) |
+| Model | Provider | Type | Size |
+|-------|----------|------|------|
+| Qwen 3.5 | Alibaba via Ollama | Local | ~2.7 GB |
+| Gemma 2 | Google via Ollama | Local | ~5.4 GB |
+| Llama 3.2 | Meta via Ollama | Local | ~3.2 GB |
+| Phi-3 Mini | Microsoft via Ollama | Local | ~2.5 GB |
+| Mistral | Mistral AI via Ollama | Local | ~7 GB |
+| Gemini 2.5 Flash | Google | Cloud | Online only |
 
 ---
 
@@ -267,3 +301,19 @@ graph TD
 | `Ctrl + Shift + F` | Search chats |
 | `Escape` | Clear input / Close modals |
 | `/` | Focus input |
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GEMINI_API_KEY` | For online mode | Google Gemini API key (backend) |
+| `VITE_GEMINI_API_KEY` | For online mode | Same key exposed to frontend via Vite |
+| `JWT_SECRET` | Auto-generated | Secret for session token generation |
+
+---
+
+## License
+
+This project is for personal and educational use.
