@@ -50,7 +50,9 @@ interface ChatState {
   messageQueue: QueueItem[];
   queueHistory: QueueItem[];
   processingQueue: boolean;
+  showResumeOptimizer: boolean;
 
+  setShowResumeOptimizer: (v: boolean) => void;
   setCurrentInputText: (text: string) => void;
   addFile: (file: File) => void;
   removeFile: (id: string) => void;
@@ -81,7 +83,7 @@ interface ChatState {
   moveChatToFolder: (chatId: string, folderId: string | null) => void;
 }
 
-let abortController: AbortController | null = null;
+const abortControllers = new Map<string, AbortController>();
 
 migrateFromLegacyStorage();
 
@@ -101,7 +103,9 @@ export const useChatStore = create<ChatState>()(
   messageQueue: [],
   queueHistory: [],
   processingQueue: false,
+  showResumeOptimizer: false,
 
+  setShowResumeOptimizer: (v) => set({ showResumeOptimizer: v }),
   setCurrentInputText: (text) => set({ currentInputText: text }),
 
   addFile: (file) => {
@@ -284,6 +288,7 @@ export const useChatStore = create<ChatState>()(
       }
 
       const fullContent = fileContext + content;
+      const attachedFiles = [...files];
       get().clearFiles();
 
       get().updateQueueProgress(queueItemId, 5);
@@ -295,6 +300,7 @@ export const useChatStore = create<ChatState>()(
         timestamp: new Date(),
         tokens: Math.ceil(fullContent.length / 4),
         status: 'sent',
+        files: attachedFiles.length > 0 ? attachedFiles : undefined,
       };
 
       set((s) => ({
@@ -314,8 +320,9 @@ export const useChatStore = create<ChatState>()(
       const activeModel = settings.model;
       const ollamaModel = MODEL_OLLAMA_MAP[activeModel] || activeModel;
 
-      abortController = new AbortController();
-      const signal = abortController.signal;
+      const ctrl = new AbortController();
+      abortControllers.set(queueItemId, ctrl);
+      const signal = ctrl.signal;
 
       set({ isTyping: true, streamingContent: '' });
 
@@ -372,7 +379,9 @@ export const useChatStore = create<ChatState>()(
         useSettingsStore.getState().useTokens(unrecordedTokens, 0);
       }
 
+      abortControllers.delete(queueItemId);
       if (signal.aborted) {
+        abortControllers.delete(queueItemId);
         set((s) => ({
           isTyping: false,
           streamingContent: '',
@@ -406,6 +415,7 @@ export const useChatStore = create<ChatState>()(
         return;
       }
 
+      abortControllers.delete(queueItemId);
       set((s) => ({
         isTyping: false,
         streamingContent: '',
@@ -470,6 +480,7 @@ export const useChatStore = create<ChatState>()(
       }
 
     } catch (err: unknown) {
+      abortControllers.delete(queueItemId);
       set({ isTyping: false, streamingContent: '' });
       const msg = err instanceof Error ? err.message : 'Failed to connect to Ollama';
       set({ ollamaError: msg });
@@ -487,6 +498,7 @@ export const useChatStore = create<ChatState>()(
     get().processQueue().catch(() => {});
   } catch (e) {
     console.error('processQueueItem fatal error:', e);
+    abortControllers.delete(queueItemId);
     set((s) => ({
       isTyping: false,
       streamingContent: '',
@@ -496,9 +508,9 @@ export const useChatStore = create<ChatState>()(
   },
 
   stopGeneration: () => {
-    if (abortController) {
-      abortController.abort();
-      abortController = null;
+    for (const [id, ctrl] of abortControllers) {
+      ctrl.abort();
+      abortControllers.delete(id);
     }
     set((s) => ({
       isTyping: false,

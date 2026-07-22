@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { MessageSquare, ArrowRight, Cpu, Globe, WifiOff, Clock, CheckCircle2, XCircle, Loader2, ListOrdered } from 'lucide-react';
+import { MessageSquare, ArrowRight, Cpu, Globe, WifiOff, Clock, CheckCircle2, XCircle, Loader2, ListOrdered, Sparkles } from 'lucide-react';
 import { useChatStore } from '../../stores/chatStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { MODELS } from '../../constants';
@@ -24,7 +24,15 @@ export function DashboardView() {
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 rounded-xl bg-surface border border-border">
-          <h3 className="text-sm font-semibold text-text mb-3">Active Model</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-text">Active Model</h3>
+            <button
+              onClick={() => useChatStore.getState().setShowResumeOptimizer(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-500 text-white text-xs font-medium hover:bg-primary-600 transition-all shadow-sm shadow-primary-500/20"
+            >
+              <Sparkles className="w-3.5 h-3.5" /> Resume Optimizer
+            </button>
+          </div>
           <div className="flex items-center gap-3">
             <span className="text-2xl">{currentModel?.icon || '🧠'}</span>
             <div className="flex-1">

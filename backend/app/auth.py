@@ -56,10 +56,9 @@ async def get_current_user(
         return None
 
     expires_at = auth_token.expires_at
-    if expires_at.tzinfo is not None:
-        now = datetime.now(timezone.utc)
-    else:
-        now = datetime.now(timezone.utc)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
 
     if now > expires_at:
         await session.delete(auth_token)

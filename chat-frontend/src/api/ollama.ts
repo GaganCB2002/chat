@@ -66,9 +66,9 @@ export async function listModels(): Promise<OllamaModel[]> {
   }
 }
 
-export async function checkConnection(): Promise<boolean> {
+export async function checkConnection(signal?: AbortSignal): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/`);
+    const res = await fetch(`${API_BASE}/`, { signal });
     return res.ok;
   } catch {
     return false;

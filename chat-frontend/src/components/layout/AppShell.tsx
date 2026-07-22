@@ -11,13 +11,14 @@ import { DeveloperInfo } from '../common/DeveloperInfo';
 import { PromptLibrary } from '../common/PromptLibrary';
 import { FilesModal } from '../common/FilesModal';
 import { AuthModal } from '../auth/AuthModal';
+import { ResumeOptimizer } from '../resume/ResumeOptimizer';
 import { useChatStore } from '../../stores/chatStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useToastStore } from '../../stores/toastStore';
 import { useAuthStore } from '../../stores/authStore';
 
 export function AppShell() {
-  const { view } = useChatStore();
+  const { view, showResumeOptimizer, setShowResumeOptimizer } = useChatStore();
   const { settings, recomputeTheme, checkOllama } = useSettingsStore();
   const { addToast } = useToastStore();
   const { showAuthModal, isAuthenticated, logout, init } = useAuthStore();
@@ -115,6 +116,7 @@ export function AppShell() {
         {showPrompts && <PromptLibrary onClose={() => setShowPrompts(false)} />}
         {showFiles && <FilesModal onClose={() => setShowFiles(false)} />}
         {showAuthModal && <AuthModal />}
+        {showResumeOptimizer && <ResumeOptimizer onClose={() => setShowResumeOptimizer(false)} />}
       </AnimatePresence>
       <ToastContainer />
     </div>

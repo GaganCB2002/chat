@@ -177,7 +177,7 @@ export function ChatView() {
               transition={{ duration: 0.2, ease: 'easeOut' }}
               className="absolute top-3 right-3 z-20 w-72"
             >
-              <div className="rounded-2xl bg-surface/95 backdrop-blur-xl border border-border shadow-2xl overflow-hidden">
+              <div className="rounded-2xl bg-surface border border-border shadow-2xl overflow-hidden">
                 {/* Header — always visible, clickable to collapse/expand */}
                 <button
                   onClick={() => setQueueExpanded(!queueExpanded)}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, ThumbsUp, ThumbsDown, RefreshCw, Edit2, Trash2, Check, X, Bot, User, Bookmark, Share2, Pin, Clock, AlertCircle, Loader2 } from 'lucide-react';
-import type { Message } from '../../types';
+import { Copy, ThumbsUp, ThumbsDown, RefreshCw, Edit2, Trash2, Check, X, Bot, User, Bookmark, Share2, Pin, Clock, AlertCircle, Loader2, FileText, FileImage, FileArchive, FileCode, Film, File, ExternalLink, X as XIcon } from 'lucide-react';
+import type { Message, UploadedFile } from '../../types';
 import { renderMarkdown } from '../../utils/markdown';
 import { cn } from '../../utils/cn';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -10,6 +10,114 @@ import { useChatStore } from '../../stores/chatStore';
 interface ChatMessageProps {
   message: Message;
   onRegenerate?: () => void;
+}
+
+function fileIcon(type: string) {
+  if (!type) return File;
+  if (type.startsWith('image/')) return FileImage;
+  if (type.startsWith('video/')) return Film;
+  if (type.startsWith('audio/')) return File;
+  if (type.includes('pdf') || type.includes('text') || type.includes('json') || type.includes('csv')) return FileText;
+  if (type.includes('zip') || type.includes('rar') || type.includes('7z') || type.includes('tar')) return FileArchive;
+  if (type.includes('javascript') || type.includes('typescript') || type.includes('python') || type.includes('java')) return FileCode;
+  return File;
+}
+
+function FileViewerModal({ file, onClose }: { file: UploadedFile; onClose: () => void }) {
+  const isImage = file.type.startsWith('image/');
+  const isPDF = file.type === 'application/pdf';
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80" onClick={onClose}>
+      <div className="relative max-w-4xl max-h-[90vh] w-full mx-4 bg-surface rounded-2xl border border-border shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-secondary">
+          <div className="flex items-center gap-2 min-w-0">
+            {isImage ? (
+              <FileImage className="w-4 h-4 text-primary-500 flex-shrink-0" />
+            ) : (
+              <FileText className="w-4 h-4 text-primary-500 flex-shrink-0" />
+            )}
+            <span className="text-sm font-medium text-text truncate">{file.name}</span>
+            <span className="text-[10px] text-text-tertiary">
+              {file.size > 1024 * 1024
+                ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+                : `${(file.size / 1024).toFixed(0)} KB`}
+            </span>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all text-text-tertiary hover:text-text">
+            <XIcon className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-auto p-4 bg-white dark:bg-surface-tertiary/50 flex items-center justify-center min-h-[300px]">
+          {isImage ? (
+            <img src={file.dataUrl} alt={file.name} className="max-w-full max-h-[70vh] rounded-lg object-contain" />
+          ) : isPDF ? (
+            <iframe src={file.dataUrl} title={file.name} className="w-full h-[70vh] rounded-lg border-0" />
+          ) : (
+            <div className="flex flex-col items-center gap-4 text-text-secondary p-8">
+              <FileText className="w-16 h-16 text-primary-500/50" />
+              <p className="text-sm font-medium">{file.name}</p>
+              <p className="text-xs text-text-tertiary">Preview not available for this file type</p>
+              <a
+                href={file.dataUrl}
+                download={file.name}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 transition-all"
+              >
+                <ExternalLink className="w-4 h-4" /> Download File
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MessageFiles({ files }: { files: UploadedFile[] }) {
+  const [viewerFile, setViewerFile] = useState<UploadedFile | null>(null);
+
+  if (!files || files.length === 0) return null;
+
+  return (
+    <>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {files.map((f) => {
+          const isImage = f.type.startsWith('image/');
+          const Icon = fileIcon(f.type);
+          const sizeStr = f.size > 1024 * 1024
+            ? `${(f.size / (1024 * 1024)).toFixed(1)} MB`
+            : `${(f.size / 1024).toFixed(0)} KB`;
+
+          return (
+            <div key={f.id}>
+              {isImage ? (
+                <img
+                  src={f.dataUrl}
+                  alt={f.name}
+                  title={f.name}
+                  className="max-w-[200px] max-h-[150px] rounded-lg object-cover cursor-pointer border border-border hover:opacity-90 transition-opacity"
+                  onClick={() => setViewerFile(f)}
+                />
+              ) : (
+                <button
+                  onClick={() => setViewerFile(f)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-surface-secondary/50 hover:bg-surface-secondary transition-all text-left max-w-[220px] group"
+                >
+                  <Icon className="w-5 h-5 text-primary-500 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-text truncate">{f.name}</p>
+                    <p className="text-[10px] text-text-tertiary">{sizeStr}</p>
+                  </div>
+                  <ExternalLink className="w-3 h-3 text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {viewerFile && <FileViewerModal file={viewerFile} onClose={() => setViewerFile(null)} />}
+    </>
+  );
 }
 
 export function ChatMessage({ message, onRegenerate }: ChatMessageProps) {
@@ -137,15 +245,29 @@ export function ChatMessage({ message, onRegenerate }: ChatMessageProps) {
               </div>
             </div>
           ) : (
-            <div className={cn(
-              'prose prose-sm max-w-none leading-relaxed',
-              isAssistant
-                ? 'dark:prose-invert prose-code:before:content-none prose-code:after:content-none'
-                : 'prose-invert prose-code:before:content-none prose-code:after:content-none',
-              message.status === 'generating' && isAssistant ? 'after:content-[""] after:inline-block after:w-1.5 after:h-4 after:bg-primary-500 after:ml-1 after:animate-pulse after:align-middle' : ''
-            )}>
-              {renderMarkdown(message.content)}
-            </div>
+            <>
+              {message.files && message.files.length > 0 && (
+                <MessageFiles files={message.files} />
+              )}
+              {(() => {
+                const cleaned = message.content
+                  .replace(/\[ attached image: .+? \]\n?/g, '')
+                  .replace(/\[ attached file: .+? \]\n?/g, '')
+                  .trim();
+                if (!cleaned) return null;
+                return (
+                  <div className={cn(
+                    'prose prose-sm max-w-none leading-relaxed',
+                    isAssistant
+                      ? 'dark:prose-invert prose-code:before:content-none prose-code:after:content-none'
+                      : 'prose-invert prose-code:before:content-none prose-code:after:content-none',
+                    message.status === 'generating' && isAssistant ? 'after:content-[""] after:inline-block after:w-1.5 after:h-4 after:bg-primary-500 after:ml-1 after:animate-pulse after:align-middle' : ''
+                  )}>
+                    {renderMarkdown(cleaned)}
+                  </div>
+                );
+              })()}
+            </>
           )}
 
           <div className={cn(

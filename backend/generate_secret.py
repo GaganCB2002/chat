@@ -12,19 +12,8 @@ def ensure_jwt_secret(env_path: str = None):
         "kortex-super-secret-key-change-in-production",
     ):
         new_key = secrets.token_hex(32)
-        if os.path.exists(env_path):
-            with open(env_path) as f:
-                lines = f.readlines()
-            with open(env_path, "w") as f:
-                found = False
-                for line in lines:
-                    if line.startswith("JWT_SECRET="):
-                        f.write(f"JWT_SECRET={new_key}\n")
-                        found = True
-                    else:
-                        f.write(line)
-                if not found:
-                    f.write(f"\nJWT_SECRET={new_key}\n")
+        with open(env_path, "a") as f:
+            f.write(f"\nJWT_SECRET={new_key}\n")
         print(f"Generated new JWT_SECRET in {env_path}")
         return new_key
     return key

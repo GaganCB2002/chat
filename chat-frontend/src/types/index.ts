@@ -44,6 +44,7 @@ export interface Message {
   pinned?: boolean;
   status?: MessageStatus;
   thinkingSteps?: ThinkingStep[];
+  files?: UploadedFile[];
 }
 
 export interface Chat {
@@ -184,3 +185,111 @@ export interface Toast {
   description: string;
   duration?: number;
 }
+
+export interface ResumeData {
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  linkedin: string;
+  github: string;
+  portfolio: string;
+  summary: string;
+  skills: string[];
+  technical_skills: Record<string, string[]>;
+  experience: ExperienceItem[];
+  projects: ProjectItem[];
+  education: EducationItem[];
+  certifications: CertificationItem[];
+  achievements: string[];
+  publications: PublicationItem[];
+}
+
+export interface ExperienceItem {
+  title: string;
+  company: string;
+  location: string;
+  start_date: string;
+  end_date: string;
+  description: string;
+  bullet_points: string[];
+}
+
+export interface ProjectItem {
+  name: string;
+  description: string;
+  technologies: string[];
+  link: string;
+  bullet_points: string[];
+}
+
+export interface EducationItem {
+  degree: string;
+  institution: string;
+  location: string;
+  graduation_date: string;
+  gpa: string;
+}
+
+export interface CertificationItem {
+  name: string;
+  issuer: string;
+  date: string;
+}
+
+export interface PublicationItem {
+  title: string;
+  journal: string;
+  date: string;
+  link: string;
+}
+
+export interface ATSAnalysis {
+  ats_score: number;
+  keyword_match: number;
+  skills_match: number;
+  experience_match: number;
+  education_match: number;
+  formatting_score: number;
+  missing_skills: MissingSkill[];
+  suggestions: ResumeSuggestion[];
+  keyword_coverage?: KeywordCoverage;
+  strengths: string[];
+  weaknesses: string[];
+}
+
+export interface MissingSkill {
+  skill: string;
+  category: string;
+  relevance: string;
+}
+
+export interface ResumeSuggestion {
+  section: string;
+  recommendation: string;
+  reason: string;
+}
+
+export interface KeywordCoverage {
+  matched_keywords: string[];
+  missing_keywords: string[];
+  coverage_percentage: number;
+}
+
+export interface JDData {
+  job_title: string;
+  required_skills: string[];
+  preferred_skills: string[];
+  responsibilities: string[];
+  experience_requirements: string;
+  education: string;
+  certifications: string[];
+  keywords: string[];
+  technologies: string[];
+  soft_skills: string[];
+  summary: string;
+}
+
+export type ResumeStep = 'upload-resume' | 'upload-jd' | 'analyzing' | 'results' | 'editing' | 'generating' | 'complete';
+
+export type ResumeTemplate = 'classic' | 'modern' | 'professional' | 'minimal';

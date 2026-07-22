@@ -148,7 +148,7 @@ export function renderMarkdown(content: string): ReactNode[] {
         'text-sm font-medium mt-3 mb-1',
         'text-sm font-medium mt-2 mb-1 text-text-secondary',
       ][Math.min(level, 5) - 1] || 'text-base font-semibold mt-4 mb-2';
-      const tagName = `h${Math.min(level + 1, 6)}`;
+      const tagName = `h${Math.min(level, 6)}`;
       elements.push(createElement(tagName, { key: `h-${elements.length}`, className: headingClass }, processInline(text)));
       i++;
       continue;

@@ -125,10 +125,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
 
     checkOllama: async () => {
       set((s) => ({ ollamaStatus: { ...s.ollamaStatus, checking: true } }));
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
       try {
-        const connected = await checkConnection();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const connected = await checkConnection(controller.signal);
+        clearTimeout(timeout);
         if (connected) {
           const models = await listModels();
           set({ ollamaStatus: { connected: true, checking: false, availableModels: models } });
@@ -137,8 +138,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
         }
       } catch {
         set({ ollamaStatus: { connected: false, checking: false, availableModels: [] } });
-      } finally {
-        clearTimeout(timeout);
       }
     },
   };

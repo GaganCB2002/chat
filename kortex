@@ -1,0 +1,356 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+import textwrap
+import time
+from datetime import datetime
+from pathlib import Path
+
+ROOT = Path(__file__).parent.resolve()
+BACKEND = ROOT / "backend"
+FRONTEND = ROOT / "chat-frontend"
+OLLAMA_DIR = ROOT / "ollama"
+ENV_FILE = ROOT / ".env"
+DB_FILE = BACKEND / "kortex.db"
+LOG_FILE = BACKEND / "uvicorn.log"
+BACKUPS_DIR = ROOT / "backups"
+
+PROCESSES: list[subprocess.Popen] = []
+
+
+def _print(msg: str, *args, **kwargs):
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", *args, **kwargs)
+
+
+def _ok(msg: str):
+    print(f"  \033[92m\u2713\033[0m {msg}")
+
+
+def _warn(msg: str):
+    print(f"  \033[93m!\033[0m {msg}")
+
+
+def _err(msg: str):
+    print(f"  \033[91m\u2717\033[0m {msg}", file=sys.stderr)
+
+
+def _header(title: str):
+    print(f"\n\033[96m{'=' * 50}\033[0m")
+    print(f"  \033[96m{title}\033[0m")
+    print(f"\033[96m{'=' * 50}\033[0m")
+
+
+def _run(cmd: list[str], cwd: str | None = None, capture: bool = False):
+    kwargs = {"cwd": cwd or str(ROOT)}
+    if capture:
+        kwargs["stdout"] = subprocess.PIPE
+        kwargs["stderr"] = subprocess.PIPE
+    return subprocess.run(cmd, **kwargs)
+
+
+def _check_port(port: int) -> bool:
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+# ── start ────────────────────────────────────────────────────────────────────
+
+def cmd_start(args):
+    _header("Starting Kortex Services")
+    started = []
+
+    if not args.no_ollama:
+        _run(["taskkill", "/f", "/im", "ollama.exe"], capture=True)
+        r = _run(["where", "ollama"], capture=True)
+        if r.returncode == 0:
+            _print("Starting Ollama...")
+            env = {**os.environ, "OLLAMA_KEEP_ALIVE": "-1", "OLLAMA_MODELS": str(OLLAMA_DIR / "models")}
+            p = subprocess.Popen(["ollama", "serve"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            PROCESSES.append(p)
+            started.append("Ollama")
+            _ok(f"Ollama started (PID: {p.pid})")
+            time.sleep(2)
+        else:
+            _warn("Ollama not found - install from https://ollama.com")
+
+    if not args.no_backend:
+        _print("Starting Backend (port 8000)...")
+        p = subprocess.Popen(
+            [sys.executable, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
+            cwd=str(BACKEND), stdout=open(LOG_FILE, "a") if LOG_FILE else None, stderr=subprocess.STDOUT,
+        )
+        PROCESSES.append(p)
+        started.append("Backend")
+        _ok(f"Backend started (PID: {p.pid})")
+
+    if not args.no_frontend:
+        _print("Starting Frontend (port 5173)...")
+        p = subprocess.Popen(["npx", "vite", "--host"], cwd=str(FRONTEND), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        PROCESSES.append(p)
+        started.append("Frontend")
+        _ok(f"Frontend started (PID: {p.pid})")
+
+    if started:
+        print("")
+        _print("Services:")
+        if "Frontend" in started: print("    Frontend : http://localhost:5173")
+        if "Backend" in started: print("    Backend  : http://localhost:8000")
+        if "Ollama" in started: print("    Ollama   : http://localhost:11434")
+        print("\n  Press Ctrl+C to stop")
+        try:
+            while True: time.sleep(1)
+        except KeyboardInterrupt:
+            cmd_stop(args)
+    else:
+        _err("No services started")
+
+
+# ── stop ─────────────────────────────────────────────────────────────────────
+
+def cmd_stop(args):
+    _print("Stopping all services...")
+    for n in ["ollama.exe", "python", "node.exe"]:
+        _run(["taskkill", "/f", "/im", n], capture=True)
+    for p in PROCESSES:
+        if p.poll() is None:
+            try: p.terminate(); p.wait(timeout=3)
+            except: p.kill()
+    PROCESSES.clear()
+    _ok("All services stopped")
+
+
+# ── status ───────────────────────────────────────────────────────────────────
+
+def cmd_status(args):
+    _header("Service Status")
+    for name, port in [("Ollama", 11434), ("Backend", 8000), ("Frontend", 5173)]:
+        if _check_port(port):
+            _ok(f"{name:10} http://localhost:{port}  RUNNING")
+        else:
+            _print(f"  {name:10} http://localhost:{port}  STOPPED")
+
+
+# ── install ──────────────────────────────────────────────────────────────────
+
+def cmd_install(args):
+    _header("Installing Dependencies")
+    _print("[1/2] Backend...")
+    r = _run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], cwd=str(BACKEND))
+    if r.returncode != 0: _err("Backend install failed"); sys.exit(1)
+    _ok("Backend done")
+    _print("[2/2] Frontend...")
+    r = _run(["npm", "install"], cwd=str(FRONTEND))
+    if r.returncode != 0: _err("Frontend install failed"); sys.exit(1)
+    _ok("Frontend done")
+    _ok("All dependencies installed")
+
+
+# ── build ────────────────────────────────────────────────────────────────────
+
+def cmd_build(args):
+    _header("Building Frontend")
+    r = _run(["npm", "run", "build"], cwd=str(FRONTEND))
+    if r.returncode != 0: _err("Build failed"); sys.exit(1)
+    _ok("Frontend built")
+    _print(f"  Output: {FRONTEND / 'dist'}")
+
+
+# ── test ─────────────────────────────────────────────────────────────────────
+
+def cmd_test(args):
+    _header("Running Tests")
+    passed, failed = 0, 0
+
+    if args.target in ("backend", "all"):
+        import pytest
+        ec = pytest.main([str(BACKEND), "-v", "--tb=short"] + (["-x"] if args.failfast else []))
+        if ec == 0: passed += 1; _ok("Backend tests passed")
+        else: failed += 1; _err("Backend tests failed")
+
+    if args.target in ("frontend", "all"):
+        _print("[Frontend] Lint...")
+        r = _run(["npx", "oxlint"], cwd=str(FRONTEND))
+        if r.returncode == 0: passed += 1; _ok("Lint passed")
+        else: failed += 1; _err("Lint failed")
+        _print("[Frontend] TypeScript...")
+        r = _run(["npx", "tsc", "--noEmit"], cwd=str(FRONTEND))
+        if r.returncode == 0: passed += 1; _ok("TypeScript passed")
+        else: failed += 1; _err("TypeScript failed")
+
+    if failed == 0 and passed > 0: _ok(f"All {passed} passed")
+    elif failed > 0: _err(f"{failed} failed, {passed} passed"); sys.exit(1)
+
+
+# ── db ───────────────────────────────────────────────────────────────────────
+
+def cmd_db(args):
+    a = args.db_action
+    if a == "init":
+        _header("DB: Init")
+        r = _run([sys.executable, "-c", textwrap.dedent("""\
+            import asyncio,sys; sys.path.insert(0,'.')
+            from app.database import init_db, dispose_db
+            asyncio.run(init_db()); asyncio.run(dispose_db())
+        """)], cwd=str(BACKEND), capture=True)
+        if r.returncode != 0: _err("Init failed"); print(r.stderr.decode()); sys.exit(1)
+        _ok("Database initialized")
+    elif a == "reset":
+        _header("DB: Reset")
+        if DB_FILE.exists(): DB_FILE.unlink(); _ok("Deleted")
+        cmd_db(argparse.Namespace(db_action="init"))
+    elif a == "backup":
+        _header("DB: Backup")
+        if not DB_FILE.exists(): _warn("No database"); return
+        BACKUPS_DIR.mkdir(exist_ok=True)
+        f = BACKUPS_DIR / f"kortex_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+        shutil.copy2(DB_FILE, f)
+        _ok(f"Backed up to {f}  ({f.stat().st_size / 1024:.0f} KB)")
+    elif a == "info":
+        _header("DB: Info")
+        if not DB_FILE.exists(): _warn("No database"); return
+        s = DB_FILE.stat(); _print(f"  File: {DB_FILE}"); _print(f"  Size: {s.st_size / 1024:.0f} KB"); _print(f"  Modified: {datetime.fromtimestamp(s.st_mtime)}")
+
+
+# ── secret ───────────────────────────────────────────────────────────────────
+
+def cmd_secret(args):
+    import secrets
+    _header("Generate JWT Secret")
+    if not ENV_FILE.exists(): _err(".env not found"); sys.exit(1)
+    secret = secrets.token_hex(32)
+    c = ENV_FILE.read_text()
+    c = "\n".join(l for l in c.split("\n") if not l.startswith("JWT_SECRET=")) + f"\nJWT_SECRET={secret}\n"
+    ENV_FILE.write_text(c)
+    _ok("JWT_SECRET saved to .env")
+
+
+# ── models ───────────────────────────────────────────────────────────────────
+
+def cmd_models(args):
+    _header("Ollama Models")
+    d = OLLAMA_DIR / "models" / "manifests" / "registry.ollama.ai" / "library"
+    if not d.exists(): _warn("No models found"); return
+    models = sorted(p.name for p in d.iterdir() if p.is_dir())
+    for i, m in enumerate(models, 1): print(f"  {i}. {m}")
+    _print(f"\n  Total: {len(models)} model(s)")
+
+
+# ── logs ─────────────────────────────────────────────────────────────────────
+
+def cmd_logs(args):
+    if not LOG_FILE.exists(): _warn("No log file"); return
+    with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+        if args.follow:
+            _print("Tailing (Ctrl+C to stop)...")
+            f.seek(0, 2)
+            try:
+                while True:
+                    l = f.readline()
+                    if l: print(l.rstrip())
+                    else: time.sleep(0.1)
+            except KeyboardInterrupt: pass
+        else:
+            print(f.read())
+
+
+# ── clean ────────────────────────────────────────────────────────────────────
+
+def cmd_clean(args):
+    _header("Cleaning Cache")
+    n = 0
+    for pat in ["__pycache__", "*.pyc", ".pytest_cache", ".ruff_cache"]:
+        for p in [BACKEND, FRONTEND]:
+            for f in p.rglob(pat):
+                if f.is_dir(): shutil.rmtree(f, ignore_errors=True)
+                else: f.unlink(missing_ok=True)
+                n += 1
+    d = FRONTEND / "node_modules" / ".cache"
+    if d.exists(): shutil.rmtree(d, ignore_errors=True); n += 1
+    _ok(f"Cleaned {n} item(s)" if n else "Nothing to clean")
+
+
+# ── pdf ──────────────────────────────────────────────────────────────────────
+
+def cmd_pdf(args):
+    _header("Export PDF")
+    try:
+        from fpdf import FPDF
+    except ImportError:
+        _print("Installing fpdf2..."); _run([sys.executable, "-m", "pip", "install", "fpdf2"])
+        from fpdf import FPDF
+
+    pdf = FPDF(); pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.add_page(); pdf.ln(50)
+    pdf.set_font("Helvetica", "B", 28); pdf.cell(0, 15, "Kortex", ln=1, align="C")
+    pdf.set_font("Helvetica", "", 16); pdf.cell(0, 10, "AI Chat Platform", ln=1, align="C")
+    pdf.ln(5)
+    # Project tree
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 14); pdf.cell(0, 12, "Project Structure", ln=1)
+    pdf.set_font("Courier", "", 7); pdf.set_text_color(50, 50, 50)
+    for f in sorted(ROOT.rglob("*")):
+        skip = any(p.name.startswith(".") or p.name in ("__pycache__","node_modules") for p in f.relative_to(ROOT).parents)
+        if skip or f.name.startswith("."): continue
+        pdf.cell(0, 3.5, str(f.relative_to(ROOT)).replace("\\","/"), ln=1)
+    pdf.set_text_color(0, 0, 0)
+    # README
+    rm = ROOT / "README.md"
+    if rm.exists():
+        pdf.add_page(); pdf.set_font("Helvetica","B",14); pdf.cell(0,12,"README",ln=1)
+        pdf.set_font("Courier","",6.5)
+        for l in rm.read_text("utf-8","replace").split("\n"):
+            pdf.cell(0,3.5,l.encode("latin-1","replace").decode("latin-1"),ln=1)
+    # Source files
+    for title, fp in [("main.py",BACKEND/"main.py"),("database.py",BACKEND/"app"/"database.py"),("models.py",BACKEND/"app"/"models.py"),("requirements.txt",BACKEND/"requirements.txt")]:
+        if fp.exists():
+            pdf.add_page(); pdf.set_font("Helvetica","B",12); pdf.cell(0,10,title,ln=1); pdf.set_font("Courier","",6)
+            for l in fp.read_text("utf-8","replace").split("\n"):
+                pdf.cell(0,3.2,l.expandtabs(2).encode("latin-1","replace").decode("latin-1"),ln=1)
+    pdf.output(args.output)
+    _ok(f"PDF saved to {args.output}  ({Path(args.output).stat().st_size / 1024:.0f} KB)")
+
+
+# ── main ─────────────────────────────────────────────────────────────────────
+
+def main():
+    p = argparse.ArgumentParser(prog="kortex", description="Kortex CLI - AI Chat Platform management tool")
+    s = p.add_subparsers(dest="command")
+
+    cp = s.add_parser("start", help="Start all services")
+    cp.add_argument("--no-ollama", action="store_true"); cp.add_argument("--no-backend", action="store_true"); cp.add_argument("--no-frontend", action="store_true")
+    s.add_parser("stop", help="Stop all services")
+    s.add_parser("status", help="Check service status")
+    s.add_parser("install", help="Install all dependencies")
+    s.add_parser("build", help="Build frontend for production")
+    cp = s.add_parser("test", help="Run tests")
+    cp.add_argument("target", nargs="?", choices=["backend","frontend","all"], default="all")
+    cp.add_argument("-x","--failfast", action="store_true")
+    cp = s.add_parser("db", help="Database operations")
+    cp.add_argument("db_action", choices=["init","reset","backup","info"])
+    s.add_parser("secret", help="Generate JWT secret")
+    s.add_parser("models", help="List Ollama models")
+    cp = s.add_parser("logs", help="View backend logs")
+    cp.add_argument("-f","--follow", action="store_true")
+    s.add_parser("clean", help="Clean cache files")
+    cp = s.add_parser("pdf", help="Export project as PDF")
+    cp.add_argument("-o","--output", default=str(ROOT/"kortex-project.pdf"))
+
+    args = p.parse_args()
+    if not args.command:
+        p.print_help(); print("\nCommands: start, stop, status, install, build, test, db, secret, models, logs, clean, pdf")
+        return
+
+    cmds = {
+        "start": cmd_start, "stop": cmd_stop, "status": cmd_status, "install": cmd_install,
+        "build": cmd_build, "test": cmd_test, "db": cmd_db, "secret": cmd_secret,
+        "models": cmd_models, "logs": cmd_logs, "clean": cmd_clean, "pdf": cmd_pdf,
+    }
+    if args.command in cmds: cmds[args.command](args)
+
+
+if __name__ == "__main__":
+    main()

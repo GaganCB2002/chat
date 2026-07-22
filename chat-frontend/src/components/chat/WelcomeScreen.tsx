@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowUp, Paperclip, Mic, MicOff, Image, Code, BookOpen, Search, PenLine, Languages, Lightbulb, FileText, Bug, Sparkles, X, File } from 'lucide-react';
+import { ArrowUp, Paperclip, Mic, MicOff, Image, Code, BookOpen, Search, PenLine, Languages, Lightbulb, FileText, Bug, Sparkles, X, File, Pin } from 'lucide-react';
 import { useChatStore } from '../../stores/chatStore';
 import { cn } from '../../utils/cn';
 
@@ -250,8 +250,31 @@ export function WelcomeScreen({ onSend }: WelcomeScreenProps) {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35, duration: 0.4 }}
+          className="w-full mt-6"
+        >
+          <p className="text-xs font-medium text-text-tertiary uppercase tracking-wider text-center mb-3">
+            <Pin className="w-3 h-3 inline mr-1" />Pinned Tools
+          </p>
+          <div className="flex flex-wrap justify-center gap-2 mb-5">
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => useChatStore.getState().setShowResumeOptimizer(true)}
+              className="group flex items-center gap-1.5 px-4 py-2.5 rounded-xl border-2 border-primary-500/40 bg-primary-50/50 dark:bg-primary-900/10 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:border-primary-500 hover:bg-primary-100/50 dark:hover:bg-primary-900/20 transition-all duration-200 shadow-sm"
+            >
+              <Sparkles className="w-4 h-4" />
+              Optimize Resume
+            </motion.button>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.4 }}
-          className="w-full mt-8"
+          className="w-full mt-2"
         >
           <p className="text-xs font-medium text-text-tertiary uppercase tracking-wider text-center mb-3">Quick actions</p>
           <div className="flex flex-wrap justify-center gap-2">

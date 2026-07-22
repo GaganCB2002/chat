@@ -22,17 +22,19 @@ interface AuthState {
   trialUsed: number;
   trialLimit: number;
   showAuthModal: boolean;
-  authMode: 'login' | 'register' | 'forgot' | 'reset';
+  authMode: 'login' | 'register' | 'forgot' | 'reset' | 'change-password';
 
   init: () => void;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (data: { first_name: string; last_name: string; email: string; password: string; age?: number }) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  forgotPassword: (email: string) => Promise<{ success: boolean; error?: string; resetToken?: string }>;
+  forgotPassword: (email: string) => Promise<{ success: boolean; error?: string; otp?: string }>;
+  verifyOtp: (email: string, token: string) => Promise<{ success: boolean; error?: string }>;
   resetPassword: (email: string, token: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   incrementTrial: () => boolean;
   canSend: () => boolean;
-  setShowAuthModal: (show: boolean, mode?: 'login' | 'register' | 'forgot' | 'reset') => void;
+  setShowAuthModal: (show: boolean, mode?: 'login' | 'register' | 'forgot' | 'reset' | 'change-password') => void;
 }
 
 function getToken(): string | null {
@@ -90,10 +92,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const meRes = await fetch(`${AUTH_API}/me`, {
         headers: { Authorization: `Bearer ${data.access_token}` },
       });
+      if (!meRes.ok) throw new Error('Failed to fetch profile');
       const me = await meRes.json();
       set({ user: me, isAuthenticated: true, showAuthModal: false });
       return { success: true };
-    } catch {
+    } catch (err: any) {
+      console.error("Login Error:", err);
       return { success: false, error: 'Network error. Is the backend running?' };
     }
   },
@@ -112,11 +116,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const meRes = await fetch(`${AUTH_API}/me`, {
         headers: { Authorization: `Bearer ${data.access_token}` },
       });
+      if (!meRes.ok) throw new Error(`Profile fetch failed: ${meRes.status}`);
       const me = await meRes.json();
       set({ user: me, isAuthenticated: true, showAuthModal: false });
       return { success: true };
-    } catch {
-      return { success: false, error: 'Network error. Is the backend running?' };
+    } catch (err: any) {
+      console.error("Register Error:", err);
+      return { success: false, error: err.message || 'Network error. Is the backend running?' };
     }
   },
 
@@ -134,7 +140,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.detail || 'Request failed' };
-      return { success: true, resetToken: data.reset_token };
+      return { success: true, otp: data.otp };
+    } catch {
+      return { success: false, error: 'Network error. Is the backend running?' };
+    }
+  },
+
+  verifyOtp: async (email, token) => {
+    try {
+      const res = await fetch(`${AUTH_API}/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, token }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.detail || 'Verification failed' };
+      return { success: true };
     } catch {
       return { success: false, error: 'Network error. Is the backend running?' };
     }
@@ -165,6 +186,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   canSend: () => {
     const { isAuthenticated, trialUsed, trialLimit } = get();
     return isAuthenticated || trialUsed < trialLimit;
+  },
+
+  changePassword: async (currentPassword, newPassword) => {
+    const token = getToken();
+    if (!token) return { success: false, error: 'Not authenticated' };
+    try {
+      const res = await fetch(`${AUTH_API}/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.detail || 'Change failed' };
+      return { success: true };
+    } catch {
+      return { success: false, error: 'Network error. Is the backend running?' };
+    }
   },
 
   setShowAuthModal: (show, mode) => {

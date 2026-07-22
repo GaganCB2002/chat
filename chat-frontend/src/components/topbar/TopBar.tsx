@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Menu, Sun, Moon, Monitor, User, Settings, LogOut, Command, Cpu, LogIn, UserPlus, Download, Zap } from 'lucide-react';
+import { Menu, Sun, Moon, Monitor, User, Settings, LogOut, Command, Cpu, LogIn, UserPlus, Download, Zap, KeyRound, Sparkles } from 'lucide-react';
 import { useChatStore } from '../../stores/chatStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { MODELS } from '../../constants';
 import { cn } from '../../utils/cn';
-import { exportChatAsJSON, exportChatAsTXT } from '../../utils/export';
+import { exportChatAsJSON, exportChatAsTXT, exportChatAsPDF } from '../../utils/export';
 
 
 interface TopBarProps {
@@ -96,12 +96,22 @@ export function TopBar({ onMobileMenu, onOpenCommand, onOpenSettings, onSignOut 
             <button className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-text-secondary hover:bg-black/5 dark:hover:bg-white/5 transition-all">
               <Download className="w-3 h-3" />
             </button>
-            <div className="absolute right-0 top-full mt-1 z-50 w-32 p-1 rounded-xl bg-surface border border-border shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-none group-hover:pointer-events-auto">
+            <div className="absolute right-0 top-full mt-1 z-50 w-36 p-1 rounded-xl bg-surface border border-border shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-none group-hover:pointer-events-auto">
               <button onClick={() => { exportChatAsJSON(currentChat); }} className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-text hover:bg-black/5 dark:hover:bg-white/5 transition-all">Export as JSON</button>
               <button onClick={() => { exportChatAsTXT(currentChat); }} className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-text hover:bg-black/5 dark:hover:bg-white/5 transition-all">Export as TXT</button>
+              <button onClick={() => { exportChatAsPDF(currentChat); }} className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-text hover:bg-black/5 dark:hover:bg-white/5 transition-all">Export as PDF</button>
             </div>
           </div>
         )}
+
+        {/* Resume Optimizer */}
+        <button
+          onClick={() => useChatStore.getState().setShowResumeOptimizer(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-all mr-1"
+          title="Optimize Resume for ATS"
+        >
+          <Sparkles className="w-3.5 h-3.5" /> Resume Optimizer
+        </button>
 
         {/* Command Palette */}
         <button onClick={onOpenCommand} className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-text-secondary hover:bg-black/5 dark:hover:bg-white/5 transition-all">
@@ -157,6 +167,7 @@ export function TopBar({ onMobileMenu, onOpenCommand, onOpenSettings, onSignOut 
                       <hr className="border-border my-0.5" />
                     </>
                   )}
+                  {isAuthenticated && <button onClick={() => { setShowAuthModal(true, 'change-password'); setShowProfile(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg text-text-secondary hover:bg-black/5 dark:hover:bg-white/5 transition-all"><KeyRound className="w-4 h-4" /> Change Password</button>}
                   <button onClick={() => { onOpenSettings(); setShowProfile(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg text-text-secondary hover:bg-black/5 dark:hover:bg-white/5 transition-all"><Settings className="w-4 h-4" /> Settings</button>
                   <hr className="border-border my-0.5" />
                   <button onClick={() => { onSignOut(); setShowProfile(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg text-accent-rose hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"><LogOut className="w-4 h-4" /> {isAuthenticated ? 'Sign out' : 'Clear session'}</button>

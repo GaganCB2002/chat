@@ -176,7 +176,7 @@ export function Sidebar({ mobile, onClose, onOpenSettings, onOpenPrompts, onOpen
   if (mobile) {
     return (
       <div className="fixed inset-0 z-50 flex">
-        <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose} />
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
         <div className="relative w-72 max-w-[85vw] h-full shadow-xl border-r border-border ">{content}</div>
       </div>
     );

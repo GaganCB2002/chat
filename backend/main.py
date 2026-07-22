@@ -15,7 +15,7 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
 from app.database import dispose_db, init_db  # noqa: E402
-from app.routers import auth, chats, gemini, ollama  # noqa: E402
+from app.routers import auth, chats, gemini, ollama, resume  # noqa: E402
 
 
 @asynccontextmanager
@@ -47,6 +47,7 @@ app.include_router(ollama.router)
 app.include_router(gemini.router)
 app.include_router(auth.router)
 app.include_router(chats.router)
+app.include_router(resume.router)
 
 
 @app.get("/api/health")

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { ArrowUp, Square, Paperclip, Mic, Keyboard, X, FileText, Image, Film, File, AlertTriangle, FileImage, FileCode, FileArchive, MicOff, Clock, CheckCircle2, XCircle, Loader2, ListOrdered } from 'lucide-react';
+import { ArrowUp, Square, Paperclip, Mic, Keyboard, X, FileText, Image, Film, File, AlertTriangle, FileImage, FileCode, FileArchive, MicOff, Clock, CheckCircle2, XCircle, Loader2, ListOrdered, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useChatStore } from '../../stores/chatStore';
@@ -169,7 +169,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
       onDrop={handleDrop}
     >
       {isDragging && (
-        <div className="absolute inset-0 flex items-center justify-center z-50 rounded-xl border-2 border-dashed border-primary-500 bg-primary-50/80 dark:bg-primary-900/40 backdrop-blur-sm">
+        <div className="absolute inset-0 flex items-center justify-center z-50 rounded-xl border-2 border-dashed border-primary-500 bg-primary-50 dark:bg-primary-900/60">
           <p className="text-sm font-medium text-primary-600 dark:text-primary-400">Drop files here</p>
         </div>
       )}
@@ -265,6 +265,14 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
                 </div>
               )}
             </div>
+            <button
+              onClick={() => useChatStore.getState().setShowResumeOptimizer(true)}
+              className="flex items-center justify-center w-7 h-7 rounded-lg text-text-tertiary hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
+              tabIndex={-1}
+              title="Optimize Resume"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+            </button>
             <button
               onClick={toggleMic}
               className={cn('flex items-center justify-center w-7 h-7 rounded-lg transition-all', listening ? 'bg-accent-rose text-white animate-pulse shadow-lg shadow-accent-rose/30'                     : 'text-text-tertiary hover:text-text hover:bg-black/5 dark:hover:bg-white/5')}

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { X, Settings, Palette, Cpu, Sun, Moon, Monitor, User, Coins, MessageSquare, BarChart3, Zap, RefreshCw, HardDrive, CheckCircle2, WifiOff } from 'lucide-react';
+import { X, Settings, Palette, Cpu, Sun, Moon, Monitor, User, Coins, MessageSquare, BarChart3, Zap, RefreshCw, HardDrive, CheckCircle2, WifiOff, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useChatStore } from '../../stores/chatStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -24,8 +24,18 @@ const TABS = [
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { settings, updateSettings, tokenQuota, ollamaStatus } = useSettingsStore();
   const { chats } = useChatStore();
-  const { user } = useAuthStore();
+  const { user, changePassword } = useAuthStore();
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('usage');
+
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [showPwCurrent, setShowPwCurrent] = useState(false);
+  const [showPwNew, setShowPwNew] = useState(false);
+  const [showPwConfirm, setShowPwConfirm] = useState(false);
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwError, setPwError] = useState('');
+  const [pwDone, setPwDone] = useState('');
 
   const totalMessages = chats.reduce((sum, c) => sum + c.messages.length, 0);
   const totalTokens = chats.reduce((sum, c) => sum + c.messages.reduce((s, m) => s + (m.tokens ?? 0), 0), 0);
@@ -38,7 +48,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={onClose}
     >
       <motion.div
@@ -101,6 +111,74 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                         <p className="text-[10px] text-text-tertiary">{label}</p>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {user && (
+                <div className="border-t border-border pt-5">
+                  <p className="text-xs font-medium text-text-secondary mb-3 flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5" /> Change Password
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5">Current Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary dark:text-text-secondary" />
+                        <input type={showPwCurrent ? 'text' : 'password'} value={pwCurrent} onChange={(e) => setPwCurrent(e.target.value)} placeholder="Current password" className="w-full h-10 pl-10 pr-10 text-sm rounded-xl border border-border bg-surface-secondary text-text placeholder-text-tertiary dark:placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-all" />
+                        <button type="button" onClick={() => setShowPwCurrent(!showPwCurrent)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text dark:text-text-secondary dark:hover:text-white transition-all">
+                          {showPwCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5">New Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary dark:text-text-secondary" />
+                        <input type={showPwNew ? 'text' : 'password'} value={pwNew} onChange={(e) => setPwNew(e.target.value)} placeholder="New password" className="w-full h-10 pl-10 pr-10 text-sm rounded-xl border border-border bg-surface-secondary text-text placeholder-text-tertiary dark:placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-all" />
+                        <button type="button" onClick={() => setShowPwNew(!showPwNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text dark:text-text-secondary dark:hover:text-white transition-all">
+                          {showPwNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5">Confirm New Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary dark:text-text-secondary" />
+                        <input type={showPwConfirm ? 'text' : 'password'} value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} placeholder="Confirm new password" className="w-full h-10 pl-10 pr-10 text-sm rounded-xl border border-border bg-surface-secondary text-text placeholder-text-tertiary dark:placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-all" />
+                        <button type="button" onClick={() => setShowPwConfirm(!showPwConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text dark:text-text-secondary dark:hover:text-white transition-all">
+                          {showPwConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    {pwError && (
+                      <p className="text-xs text-accent-rose bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800">{pwError}</p>
+                    )}
+                    {pwDone && (
+                      <p className="text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg border border-green-200 dark:border-green-800 flex items-center gap-2">
+                        <CheckCircle className="w-3.5 h-3.5" /> {pwDone}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      disabled={pwLoading}
+                      onClick={async () => {
+                        setPwError('');
+                        setPwDone('');
+                        if (!pwCurrent.trim() || !pwNew.trim() || !pwConfirm.trim()) { setPwError('Please fill in all fields'); return; }
+                        if (pwNew.length < 4) { setPwError('New password must be at least 4 characters'); return; }
+                        if (pwNew !== pwConfirm) { setPwError('Passwords do not match'); return; }
+                        setPwLoading(true);
+                        const result = await changePassword(pwCurrent, pwNew);
+                        setPwLoading(false);
+                        if (!result.success) { setPwError(result.error ?? 'Change failed'); return; }
+                        setPwDone('Password changed successfully!');
+                        setPwCurrent(''); setPwNew(''); setPwConfirm('');
+                      }}
+                      className="w-full h-9 text-sm font-medium rounded-xl bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                    >
+                      {pwLoading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Lock className="w-4 h-4" /> Update Password</>}
+                    </button>
                   </div>
                 </div>
               )}

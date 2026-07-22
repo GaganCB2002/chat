@@ -1,10 +1,6 @@
-import logging
-import uuid
+import secrets
 from datetime import datetime, timedelta, timezone
-from email.message import EmailMessage
 
-import aiosmtplib
-import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,54 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import (create_access_token, get_current_user, hash_password,
                       verify_password)
 from app.database import get_session
+from app.email_utils import send_welcome_email
 from app.models import User
-from app.schemas import (ForgotPasswordRequest, LoginRequest, RegisterRequest,
-                         ResetPasswordRequest, TokenResponse, UserResponse)
+from app.schemas import (ChangePasswordRequest, ForgotPasswordRequest,
+                         LoginRequest, RegisterRequest, ResetPasswordRequest,
+                         TokenResponse, UserResponse, VerifyOtpRequest)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-
-async def send_reset_email(to_email: str, token: str):
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.nodemailer.com/user",
-                json={"requestor": "KortexLocalApp", "version": "1.0"},
-            )
-            resp.raise_for_status()
-            account = resp.json()
-
-        smtp_host = account["smtp"]["host"]
-        smtp_port = account["smtp"]["port"]
-        smtp_user = account["user"]
-        smtp_pass = account["pass"]
-
-        message = EmailMessage()
-        message["From"] = f"Kortex App <{smtp_user}>"
-        message["To"] = to_email
-        message["Subject"] = "Password Reset Request"
-        message.set_content(
-            f"Your password reset token is:\n\n{token}\n\nUse this token in the app to reset your password."
-        )
-
-        await aiosmtplib.send(
-            message,
-            hostname=smtp_host,
-            port=smtp_port,
-            username=smtp_user,
-            password=smtp_pass,
-            start_tls=True,
-        )
-        print("\n" + "=" * 60)
-        print("📧 ETHEREAL EMAIL SENT!")
-        print("🔗 View Inbox at : https://ethereal.email/login")
-        print(f"👤 Username     : {smtp_user}")
-        print(f"🔑 Password     : {smtp_pass}")
-        print("=" * 60 + "\n")
-    except Exception as e:
-        logging.error(f"Failed to send Ethereal email: {e}")
-        print(f"\n⚠️ FAILED TO SEND EMAIL: {e}")
-        print(f"Fallback Token output: {token}\n")
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -111,6 +66,9 @@ async def register(body: RegisterRequest, session: AsyncSession = Depends(get_se
     await session.refresh(user)
 
     token = await create_access_token(user.id, session)
+
+    await send_welcome_email(email, user.first_name)
+
     return TokenResponse(access_token=token)
 
 
@@ -140,22 +98,38 @@ async def forgot_password(
     result = await session.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     if not user:
-        return {
-            "message": "If an account with that email exists, a reset token has been generated."
-        }
+        raise HTTPException(status_code=404, detail="Email not found")
 
-    token = uuid.uuid4().hex + uuid.uuid4().hex
-    user.reset_token = token
-    user.reset_token_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
+    otp = f"{secrets.randbelow(1000000):06d}"
+    user.reset_token = otp
+    user.reset_token_expiry = datetime.now(timezone.utc) + timedelta(minutes=10)
     await session.commit()
 
-    # Send Ethereal Email asynchronously (fire and forget for this local test, or await)
-    await send_reset_email(email, token)
+    return {"message": "OTP generated successfully", "otp": otp}
 
-    return {
-        "message": "If an account with that email exists, a reset token has been emailed.",
-        "note": "Check your console for Ethereal email login details!",
-    }
+
+@router.post("/verify-otp")
+async def verify_otp(
+    body: VerifyOtpRequest, session: AsyncSession = Depends(get_session)
+):
+    email = body.email.strip().lower()
+    result = await session.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not user.reset_token or not user.reset_token_expiry:
+        raise HTTPException(status_code=400, detail="No reset token requested")
+    if user.reset_token != body.token:
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+
+    expiry = user.reset_token_expiry
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+
+    if datetime.now(timezone.utc) > expiry:
+        raise HTTPException(status_code=400, detail="OTP has expired")
+
+    return {"message": "OTP verified"}
 
 
 @router.post("/reset-password")
@@ -178,18 +152,37 @@ async def reset_password(
         raise HTTPException(status_code=400, detail="Invalid reset token")
 
     expiry = user.reset_token_expiry
-    if expiry.tzinfo is not None:
-        if datetime.now(timezone.utc) > expiry:
-            raise HTTPException(status_code=400, detail="Reset token has expired")
-    else:
-        if datetime.now(timezone.utc) > expiry:
-            raise HTTPException(status_code=400, detail="Reset token has expired")
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+        
+    if datetime.now(timezone.utc) > expiry:
+        raise HTTPException(status_code=400, detail="Reset token has expired")
 
     user.hashed_password = hash_password(body.new_password)
     user.reset_token = None
     user.reset_token_expiry = None
     await session.commit()
     return {"message": "Password reset successfully"}
+
+
+@router.post("/change-password")
+async def change_password(
+    body: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not verify_password(body.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(body.new_password) < 4:
+        raise HTTPException(
+            status_code=400, detail="New password must be at least 4 characters"
+        )
+
+    user.hashed_password = hash_password(body.new_password)
+    await session.commit()
+    return {"message": "Password changed successfully"}
 
 
 @router.get("/me", response_model=UserResponse | None)

@@ -26,6 +26,14 @@ MODEL_ALIASES = {
     "gemini-3.5-flash": "gemini-2.5-flash",
 }
 
+_client: httpx.AsyncClient | None = None
+
+def get_client() -> httpx.AsyncClient:
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient(timeout=httpx.Timeout(REQUEST_TIMEOUT))
+    return _client
+
 
 @router.post("/chat")
 async def gemini_chat(body: GeminiChatRequest):
@@ -54,50 +62,47 @@ async def gemini_chat(body: GeminiChatRequest):
     url = f"{GEMINI_BASE_URL}/{model_name}:streamGenerateContent?alt=sse"
     headers = {"Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY}
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(REQUEST_TIMEOUT)) as client:
-        try:
-            res = await client.post(url, json={"contents": combined}, headers=headers)
-            if not res.is_success:
-                detail = "Gemini API error"
-                try:
-                    detail = res.json().get("error", {}).get("message", res.text[:500])
-                except Exception:
-                    detail = res.text[:500]
-                raise HTTPException(status_code=res.status_code, detail=detail)
+    client = get_client()
+    try:
+        res = await client.post(url, json={"contents": combined}, headers=headers)
+        if not res.is_success:
+            detail = "Gemini API error"
+            try:
+                detail = res.json().get("error", {}).get("message", res.text[:500])
+            except Exception:
+                detail = res.text[:500]
+            raise HTTPException(status_code=res.status_code, detail=detail)
 
-            async def stream_sse():
-                buffer = ""
-                async for chunk in res.aiter_bytes():
-                    try:
-                        decoded = chunk.decode("utf-8", errors="replace")
-                    except Exception:
-                        decoded = chunk.decode("utf-8", errors="replace")
-                    buffer += decoded
-                    lines = buffer.split("\n")
-                    buffer = lines.pop() or ""
-                    for line in lines:
-                        if line.startswith("data: "):
-                            yield line + "\n"
-                if buffer:
-                    yield buffer + "\n"
+        async def stream_sse():
+            buffer = ""
+            async for chunk in res.aiter_bytes():
+                decoded = chunk.decode("utf-8", errors="replace")
+                buffer += decoded
+                lines = buffer.split("\n")
+                buffer = lines.pop() or ""
+                for line in lines:
+                    if line.startswith("data: "):
+                        yield line + "\n"
+            if buffer:
+                yield buffer + "\n"
 
-            return StreamingResponse(
-                stream_sse(),
-                media_type="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no",
-                },
-            )
-        except httpx.TimeoutException:
-            raise HTTPException(status_code=504, detail="Gemini API request timed out")
-        except httpx.ConnectError:
-            raise HTTPException(
-                status_code=503,
-                detail="Gemini API not reachable. Check your internet connection.",
-            )
-        except httpx.HTTPError as e:
-            raise HTTPException(
-                status_code=502, detail=f"Gemini API request failed: {str(e)[:200]}"
-            )
+        return StreamingResponse(
+            stream_sse(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Gemini API request timed out")
+    except httpx.ConnectError:
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini API not reachable. Check your internet connection.",
+        )
+    except httpx.HTTPError as e:
+        raise HTTPException(
+            status_code=502, detail=f"Gemini API request failed: {str(e)[:200]}"
+        )

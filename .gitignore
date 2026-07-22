@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
+.env.production
 models/
 chat-frontend/models/
 *.log
@@ -12,3 +13,7 @@ backend/kortex.db
 backend/*.pyc
 backend/app/__pycache__/
 backend/app/routers/__pycache__/
+prometheus/data/
+pgdata/
+redisdata/
+ollamadata/

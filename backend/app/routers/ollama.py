@@ -12,11 +12,14 @@ OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 REQUEST_TIMEOUT = 120
 STREAM_TIMEOUT = 600
 
-_client = httpx.AsyncClient(timeout=httpx.Timeout(REQUEST_TIMEOUT))
+_client: httpx.AsyncClient | None = None
 
 
-async def get_client():
-    yield _client
+def get_client(timeout: int = REQUEST_TIMEOUT) -> httpx.AsyncClient:
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient(timeout=httpx.Timeout(timeout))
+    return _client
 
 
 @router.get("/")
@@ -31,42 +34,40 @@ async def check_ollama():
 
 @router.get("/tags")
 async def list_models():
-    async with httpx.AsyncClient(timeout=10) as client:
-        try:
-            res = await client.get(f"{OLLAMA_HOST}/api/tags")
-            if not res.is_success:
-                raise HTTPException(
-                    status_code=res.status_code, detail="Ollama API error"
-                )
-            return res.json()
-        except httpx.ConnectError:
-            raise HTTPException(status_code=503, detail="Ollama not reachable")
+    try:
+        client = get_client(10)
+        res = await client.get(f"{OLLAMA_HOST}/api/tags")
+        if not res.is_success:
+            raise HTTPException(
+                status_code=res.status_code, detail="Ollama API error"
+            )
+        return res.json()
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Ollama not reachable")
 
 
 async def proxy_post(path: str, payload: dict, stream: bool):
     try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(STREAM_TIMEOUT if stream else REQUEST_TIMEOUT)
-        ) as client:
-            res = await client.post(f"{OLLAMA_HOST}{path}", json=payload)
-            if not res.is_success:
-                detail = "Ollama API error"
-                try:
-                    detail = res.json().get("error", res.text)
-                except Exception:
-                    detail = res.text[:500]
-                raise HTTPException(status_code=res.status_code, detail=detail)
-            if not stream:
-                return res.json()
-            return StreamingResponse(
-                res.aiter_bytes(),
-                media_type="application/x-ndjson",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no",
-                },
-            )
+        client = get_client(STREAM_TIMEOUT if stream else REQUEST_TIMEOUT)
+        res = await client.post(f"{OLLAMA_HOST}{path}", json=payload)
+        if not res.is_success:
+            detail = "Ollama API error"
+            try:
+                detail = res.json().get("error", res.text)
+            except Exception:
+                detail = res.text[:500]
+            raise HTTPException(status_code=res.status_code, detail=detail)
+        if not stream:
+            return res.json()
+        return StreamingResponse(
+            res.aiter_bytes(),
+            media_type="application/x-ndjson",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Ollama request timed out")
     except httpx.ConnectError:
